@@ -85,6 +85,34 @@ txt_print:
   pop de
   jr txt_print
 
+; B = game y, DE = string: XOR it centred on the screen.
+text_mid:
+  ld h,d
+  ld l,e
+  ld c,BYTES_PER_LINE/2         ; left byte column = 48 - length
+.len:
+  ld a,(hl)
+  or a
+  jr z,.got
+  inc hl
+  dec c
+  jr .len
+.got:
+  ld a,c
+  ; fall through
+; A = byte column, B = game y, DE = string: XOR it there.
+text_at:
+  ld l,b
+  ld h,row_lo>>8
+  add a,(hl)
+  ld c,a
+  inc h                         ; row_hi
+  ld a,(hl)
+  adc a,0
+  ld h,a
+  ld l,c
+  jp print_xor
+
 ; ---------------------------------------------------------------------------
 ; HUD fields. Each frame at most one field is brought up to date, one
 ; character at a time, so a change never costs more than ~300 NOPs.

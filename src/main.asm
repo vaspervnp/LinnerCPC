@@ -12,6 +12,7 @@
 ;   &7800-&7BFF   terrain run lengths (mirrored like the key ring)
 ;   &7C00-&7FFF   stack
 ;   &8000-&FFFF   the screen: Mode 1 overscan 384x272, single buffer
+;   &C4E0-&C6DF   (inside it, never displayed) the disk sector buffer
 ;
 ; Frame order: wait for VSYNC, then redraw Linner and the objects (the
 ; beam is still in the top border, ~2 ms before the first visible row),
@@ -40,6 +41,9 @@ TEST_GHOST equ 0                ; tests: Linner is phased out for good
   ifndef TEST_SOAK
 TEST_SOAK equ 0                 ; tests: 1 = roll through water, 2 = also stay in gear 1
   endif
+  ifndef TEST_HISCORE
+TEST_HISCORE equ 0              ; tests: 1 life, score 1234, scripted name entry, disk
+  endif
 
   buildsna
   bankset 0
@@ -61,11 +65,27 @@ start:
   ldir
   call video_init               ; overscan, black palette, screen cleared
   call objects_init
+  ld bc,FDC_MOTOR               ; (the loader left the drive motor off)
+  xor a
+  out (c),a
   ei
-  call game_new                 ; level 1, "GET READY"
+  call hiscore_init             ; built-in table, then the disk's
+  ld a,&FF
+  call title_start
 
 main_loop:
   call wait_frame
+  ld a,(game_state)             ; title or name entry: no game world
+  cp GS_TITLE
+  jr c,.game
+  if TEST_FRAMES
+  call test_input
+  else
+  call pad_read
+  endif
+  call game_update
+  jp main_loop
+.game:
   BORDER HW_BRIGHT_RED
   call render
   BORDER HW_BLUE
@@ -75,7 +95,9 @@ main_loop:
   call pad_read
   endif
   call game_update
-  call hud_update
+  ld a,(game_state)             ; (the game may have just ended: the HUD
+  cp GS_TITLE                   ; is gone with the rest of the screen)
+  call c,hud_update
   BORDER HW_BLACK
   jp main_loop
 
@@ -95,6 +117,11 @@ test_input:
   sbc hl,de
   jp z,0
   add hl,de
+  ld a,(game_state)
+  cp GS_TITLE
+  jp z,test_title
+  cp GS_ENTRY
+  jp z,test_entry
   ld c,0                        ; C = pad bits this loop
   if TEST_SOAK == 2               ; stay in gear 1: too slow for the water
   jr .auto
@@ -178,6 +205,111 @@ test_input:
   ld (pad),a
   ret
 TEST_LOOKAHEAD equ LINNER_R+4
+
+; Title: press FIRE (once the title takes input), but not after a name
+; entry: the test ends there, showing the table.
+test_title:
+  ld c,0
+  ld a,(test_step)
+  inc a
+  jr z,test_pad                 ; (&FF: the name is in)
+  ld a,(state_timer)
+  or a
+  jr nz,test_pad
+  ld c,1<<PAD_FIRE
+  jr test_pad
+
+; Name entry: the script below, one event per line (frame, pad, key).
+test_entry:
+  ld hl,test_step
+  inc (hl)
+  ld b,(hl)
+  ld a,&FF                      ; no key down...
+  ld hl,keymap
+  ld c,10
+.clr:
+  ld (hl),a
+  inc hl
+  dec c
+  jr nz,.clr
+  ld hl,test_name_script
+.lp:
+  ld a,(hl)
+  or a
+  jr z,test_pad
+  cp b
+  jr z,.event
+  inc hl
+  inc hl
+  inc hl
+  jr .lp
+.event:
+  inc hl
+  ld c,(hl)
+  inc hl
+  ld a,(hl)                     ; ... or the scripted one
+  or a
+  jr z,.last
+  call test_key
+.last:
+  ld a,b
+  cp TEST_NAME_END
+  jr nz,test_pad
+  ld a,&FF                      ; done: the title shows the table
+  ld (test_step),a
+  ; fall through
+test_pad:
+  ld a,(pad)
+  cpl
+  and c
+  ld (pad_new),a
+  ld a,c
+  ld (pad),a
+  ret
+
+; A = key code: hold it down in keymap.
+test_key:
+  push bc
+  ld c,a
+  rrca
+  rrca
+  rrca
+  rrca
+  and &0F
+  ld e,a
+  ld d,0
+  ld hl,keymap
+  add hl,de
+  ld a,c
+  and 7
+  ld b,a
+  ld a,&FE
+  inc b
+  jr .go
+.rot:
+  rlca
+.go:
+  djnz .rot
+  and (hl)
+  ld (hl),a
+  pop bc
+  ret
+
+; Joystick UP twice ("C"), FIRE, then typed: P, X, DEL (clears the blank,
+; goes back over the X), C, 6, 4, RETURN. The table gets "CPC64".
+test_name_script:
+  db 10,1<<PAD_UP,0
+  db 16,1<<PAD_UP,0
+  db 22,1<<PAD_FIRE,0
+  db 28,0,&33
+  db 34,0,&77
+  db 40,0,&97
+  db 46,0,&76
+  db 52,0,&60
+  db 58,0,&70
+  db 64,0,&22
+TEST_NAME_END equ 64
+  db 0
   endif
 
   include "video.asm"
@@ -189,6 +321,8 @@ TEST_LOOKAHEAD equ LINNER_R+4
   include "hud.asm"
   include "text.asm"
   include "game.asm"
+  include "hiscore.asm"
+  include "disk.asm"
   include "tables.asm"
   include "level1.asm"
 
@@ -269,6 +403,19 @@ hud_box:        defs 5          ; the look each gear box has on screen
 spawn_ptr:      dw 0
 spawn_base:     dw 0
 gu_min:         db 0
+; high scores and the disk
+hiscores:       defs HS_COUNT*HS_SIZE
+title_hl:       db 0
+title_tick:     db 0
+entry_rank:     db 0
+entry_pos:      db 0
+entry_name:     defs 5
+key_prev:       defs 10
+hs_row:         defs 18
+disk_track:     db 0
+disk_sector:    db 0
+fdc_res:        defs 8
+test_step:      db 0
 
 vars_end:
 

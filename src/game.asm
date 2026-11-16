@@ -5,7 +5,7 @@
 ;   GS_READY     "LEVEL n  GET READY", the world frozen for a moment
 ;   GS_PLAY      the game proper (hero_update, objects_update, timer)
 ;   GS_COMPLETE  past the finish post: the time left becomes points
-;   GS_OVER      "GAME OVER", then a new game
+;   GS_OVER      "GAME OVER", then the name entry or the title
 ; Losing a life (hero_dying runs out) restarts the level, or ends the game.
 ; ===========================================================================
 
@@ -13,6 +13,8 @@ GS_READY    equ 0
 GS_PLAY     equ 1
 GS_COMPLETE equ 2
 GS_OVER     equ 3
+GS_TITLE    equ 4               ; (hiscore.asm) from here on the game
+GS_ENTRY    equ 5               ; world isn't on screen
 
 START_LIVES equ 3
 READY_TIME  equ 90
@@ -29,6 +31,11 @@ game_new:
   ld (score+1),a
   ld (score+2),a
   ld a,START_LIVES
+  if TEST_HISCORE
+  ld a,1                        ; tests: one life, a score for the table
+  ld hl,&3412
+  ld (score+1),hl
+  endif
   ld (lives),a
   ld a,1
   ld (level_num),a
@@ -85,10 +92,14 @@ game_update:
   jr z,.ready
   cp GS_COMPLETE
   jp z,game_complete
+  cp GS_TITLE
+  jp z,title_update
+  cp GS_ENTRY
+  jp z,entry_update
   ld hl,state_timer             ; GS_OVER
   dec (hl)
   ret nz
-  jp game_new
+  jp hiscore_after_game
 .ready:
   ld hl,state_timer
   dec (hl)
@@ -292,30 +303,9 @@ msg_show:
   ld (msg_cur),de
   ; fall through
 msg_xor:
-  ld hl,(msg_cur)               ; length -> left byte column 48 - len
-  ld b,0
-.len:
-  ld a,(hl)
-  or a
-  jr z,.got
-  inc hl
-  inc b
-  jr .len
-.got:
-  ld a,BYTES_PER_LINE/2
-  sub b
-  ld e,MSG_ROW
-  ld d,row_lo>>8
-  ld l,a
-  ld a,(de)
-  add a,l
-  ld l,a
-  inc d
-  ld a,(de)
-  adc a,0
-  ld h,a
   ld de,(msg_cur)
-  jp print_xor
+  ld b,MSG_ROW
+  jp text_mid
 
 msg_hide:
   ld hl,(msg_cur)

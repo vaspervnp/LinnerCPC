@@ -19,6 +19,16 @@ Design: `linner_game_story.md`, plan: `milestones.md`.
   water instead, `-DTEST_SOAK=2` also stays in gear 1 (sinks, restarts);
   `-DTEST_GEAR5=1` unlocks gear 5. Pass `-B` when changing TESTDEFS or
   TEST_FRAMES (make doesn't track them).
+- The game boots into the title: test builds press FIRE there as soon as it
+  takes input (25 frames), so the demo starts a couple of loops later.
+- `make hitest`: high score round trip on a real disk image in Caprice32
+  (the test snapshot plus `build/hitest/linner.dsk` in drive A): one life,
+  score preset to 1234, sinks, enters "CPC64" through the pad and typed
+  keys (DEL included), writes HISCORE.DAT via the FDC, reads it back and
+  shows the title -> `build/hitest.png` must list CPC64 001329 first (the
+  built-in table would mean the save or the load failed).
+- `tools/hiscore.py [--where] disk.dsk` prints the table in a disk's
+  HISCORE.DAT (and which track/sector it is on).
 - `tools/bench_terrain.py [slopes | level.txt]`: loop time per gear on
   zigzag terrain of a fixed slope or on a level (cpcsim, gear 5 unlocked,
   the demo autopilot shooting, Linner phased out so nothing ends the run).
@@ -75,7 +85,8 @@ Design: `linner_game_story.md`, plan: `milestones.md`.
   = 10 points, then the next level; there is only level 1's data so far) ->
   ... Losing a life restarts the level (`level_setup`: palette black, XOR
   everything away, ground_wipe, re-init, full redraw); 3 lives, then GAME
-  OVER and a new game. The timer (`time N` in the level, BCD) running out
+  OVER (4 s), the name entry if the score makes the Top 10, and the title.
+  The timer (`time N` in the level, BCD) running out
   loses a life too.
 - Powerups (Rhombus, `item X speed|phase ALT`): Max Speed unlocks gear 5
   for 20 s (HUD box 5 turns green); Phase Out makes Linner a dotted ghost
@@ -86,6 +97,35 @@ Design: `linner_game_story.md`, plan: `milestones.md`.
 - HUD: gear boxes, soggy bar, "SCORE 000000", "T 060", "@X3" (lives).
   Text uses a 5x7 font (gen_tables.py) via print_hud (write) / print_xor
   (messages over the play area, removed by printing again).
+
+- Title (GS_TITLE, hiscore.asm): the Top 10, a blinking "PRESS FIRE", the
+  controls; FIRE or JUMP starts a game. A new entry blinks.
+- Name entry (GS_ENTRY): 5 characters starting "A    "; UP/DOWN cycle
+  A-Z 0-9 . - ! space (repeats when held), RIGHT/FIRE next, LEFT back,
+  FIRE on the last one finishes. Or type: letters, digits, . - space,
+  DEL clears (on a blank: the one before), RETURN/ENTER finishes. Typed
+  keys come from keymap edges (key_prev). Ties keep the older entry above.
+- Title and entry screens are plain XOR text on a cleared screen
+  (`screen_clear`: cls + every "drawn" flag reset, so level_setup's XOR
+  wipes find nothing); the main loop skips render and HUD in those states.
+
+## High scores on disk (disk.asm)
+- HISCORE.DAT (512 zero bytes = "use the built-in table") is put on the
+  disk by iDSK without a header. At boot the game finds it in the
+  directory (track 0, sector &C1, user 0, extent 0), converts its first
+  block to track/sector (data format: block*2 = logical sector, 9 per
+  track, &C1 first, no reserved tracks) and reads it. The sector holds
+  "LINNERHI", 10 x (name 5 + BCD score 3) and a checksum (A5, add + rlca).
+- The firmware is gone, so the uPD765 is driven directly (polled, non-DMA,
+  interrupts off): specify &03,&A1,&03, recalibrate, seek, read/write
+  with EOT = R (a good end is ST0 &40, ST1 &80). Motor on + 50 frames of
+  spin-up before each access (the loader turns the motor off).
+- Every FDC wait has a time-out except the 32 us/byte data loops; with no
+  FDC (port reads &FF), no disc or no HISCORE.DAT, disk_track stays &FF
+  and the table lives in RAM only. A failed save says "COULD NOT SAVE".
+- SECTOR_BUF is &C4E0: screen RAM that is never displayed (charlines
+  21..33 end at &C4DF in each 2K row block of the &C000 page).
+- Scripted demos (TEST_FRAMES without TEST_HISCORE) skip the disk.
 
 ## Architecture decisions (from the user)
 - Mode 1 full overscan, 384x272, **single buffer** at &8000-&FFFF (32K via
@@ -115,5 +155,12 @@ Design: `linner_game_story.md`, plan: `milestones.md`.
   The snap can't read /tmp, keep images under the repo.
 - DISC.BAS must have CR LF line endings (the Makefile converts it).
 - Booting the .dsk headless: `tools/cpcemu -nowait -keys $'run"disc\n'zzz...`
-  needs ~1200 padding keys now that LINNER.BIN is ~22K (fewer and the
-  screenshot catches the black loading screen).
+  needs ~1500 padding keys now that LINNER.BIN is ~24K and the game spins
+  the drive up for a second (fewer and the screenshot catches a black
+  screen). `CAP32_WAITBREAK` can't be used for a disk boot: the boot
+  itself passes &0000.
+- `tools/cpcemu` takes several images (e.g. a snapshot plus a .dsk for
+  drive A). Caprice32 can't save a written .dsk headless (it only asks
+  "Unsaved changes..." on quit, which is why cpcemu stops it once the
+  screenshot exists) and `CAP32_SNAPSHOT` writes nothing headless: check
+  disk writes by reading them back in the same run (`make hitest`).

@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Headless CPC test harness built on the Caprice32 snap.
 #
-#   tools/cpcemu [-shot out.png] [-timeout secs] [-keys "autotype"] [-nowait] [-model 0|1|2] <file.sna|file.dsk>
+#   tools/cpcemu [-shot out.png] [-timeout secs] [-keys "autotype"] [-nowait] [-model 0|1|2] <file.sna|file.dsk>...
+#
+# Several images can be given (e.g. a snapshot and the disk for drive A).
 #
 # -model: 0 = CPC 464, 1 = 664, 2 = 6128 (default). -ram: KB (default 128).
 #
@@ -20,7 +22,7 @@ TIMEOUT=60
 KEYS=""
 MODEL=2
 RAM=128
-while [[ $# -gt 1 ]]; do
+while [[ $# -gt 1 && "$1" == -* ]]; do
   case "$1" in
     -shot) SHOT="$2"; shift 2 ;;
     -snap) SNAPOUT="$2"; shift 2 ;;
@@ -32,6 +34,8 @@ while [[ $# -gt 1 ]]; do
     *) echo "unknown option $1" >&2; exit 2 ;;
   esac
 done
+IMAGES=""
+for f in "$@"; do IMAGES+=" \"$(realpath "$f")\""; done
 IMAGE="$(realpath "$1")"
 
 SNAP_DATA="$HOME/snap/caprice32/current"
@@ -49,12 +53,29 @@ cat > "$CMDFILE" <<INNER
 export SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy
 exec "\$SNAP/usr/bin/cap32" --cfg_file="\$SNAP_USER_DATA/etc/cap32.cfg" \\
   -O system.limit_speed=0 -O system.model=${MODEL} -O system.ram_size=${RAM} -O video.scr_fps=0 \\
-  -a '${KEYS}${WAIT}\\(CAP32_SCRNSHOT)${DUMP}\\(CAP32_EXIT)' "$IMAGE"
+  -a '${KEYS}${WAIT}\\(CAP32_SCRNSHOT)${DUMP}\\(CAP32_EXIT)' ${IMAGES}
 INNER
 
 LOG="$(dirname "$IMAGE")/cpcemu.log"
-if timeout "$TIMEOUT" snap run --shell caprice32.launcher -c "bash '$CMDFILE'" >"$LOG" 2>&1 \
-   && ls "$SHOTDIR"/screenshot_*.png >/dev/null 2>&1; then
+# Caprice32 asks "Unsaved changes. Do you really want to quit?" when the
+# program wrote to a disk, and that dialog never closes headless: once the
+# screenshot (and snapshot) are written, give it 2 s and then stop it.
+setsid timeout "$TIMEOUT" snap run --shell caprice32.launcher -c "bash '$CMDFILE'" >"$LOG" 2>&1 &
+PID=$!
+done_files() {
+  ls "$SHOTDIR"/screenshot_*.png >/dev/null 2>&1 || return 1
+  [[ -z "$SNAPOUT" ]] || ls "$SNAPDIR"/snapshot_*.sna >/dev/null 2>&1
+}
+while kill -0 "$PID" 2>/dev/null; do
+  if done_files; then
+    for _ in 1 2 3 4; do kill -0 "$PID" 2>/dev/null || break; sleep 0.5; done
+    kill -- -"$PID" 2>/dev/null || true
+    break
+  fi
+  sleep 0.2
+done
+wait "$PID" 2>/dev/null || true
+if done_files; then
   if [[ -n "$SHOT" ]]; then mv "$(ls -t "$SHOTDIR"/screenshot_*.png | head -1)" "$SHOT"; fi
   if [[ -n "$SNAPOUT" ]]; then mv "$(ls -t "$SNAPDIR"/snapshot_*.sna | head -1)" "$SNAPOUT"; fi
   if grep -q "ERROR" "$LOG"; then grep "ERROR" "$LOG" >&2; exit 1; fi
