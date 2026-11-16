@@ -155,6 +155,19 @@ ground_begin:
   ld (g_active),a
   ret
 
+; Erase the whole Line from the screen (before a restart).
+ground_wipe:
+  ld hl,(drawn_wx)
+  call ring_addr
+  ld (g_old),hl
+  ld hl,GAPS
+  ld (g_new),hl
+  ld a,1
+  ld (g_active),a
+  ld e,0
+  ld b,BYTES_PER_LINE
+  jp ground_cols
+
 ground_end:
   ld hl,(scroll_wx)
   ld (drawn_wx),hl

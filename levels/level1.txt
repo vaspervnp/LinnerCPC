@@ -1,4 +1,6 @@
 # Linner - level 1 terrain (loops back to the start until Phase 6 adds an end)
+# A full jump lasts 40 frames: 40 px at gear 1, 60 at gear 2, 80 at gear 3,
+# 110 at gear 4, 140 at gear 5.
 # LEN ALT TYPE: the line runs LEN pixels to altitude ALT (0..126).
 #
 # Slope budget (checked by tools/level2asm.py): at top speed every column on
@@ -15,6 +17,8 @@ start 30
 120 50  ground
 160 30  ground      # 1/8 down
 60  30  ground
+32  30  gap         # the Bureau's first sabotage: an easy hop
+80  30  ground
 
 # --- a short steep ramp onto a plateau --------------------------------------
 24  48  ground      # 3/4 kicker
@@ -34,7 +38,9 @@ start 30
 12  56  ground
 60  56  ground
 12  47  ground
-120 47  ground
+60  47  ground
+56  47  gap         # a wider one: gear 2 at least
+60  47  ground
 12  58  ground
 60  58  ground
 12  47  ground
@@ -44,5 +50,7 @@ start 30
 200 22  ground      # 1/8 down
 60  22  water
 40  22  ground
+80  22  gap         # the chasm: gear 3 or faster
+60  22  ground
 64  30  ground      # 1/8 up to the start altitude
 140 30  ground

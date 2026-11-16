@@ -66,7 +66,7 @@ debug: $(B)/debug/linner.sna
 # scripted demo build (stops itself at &0000 after TEST_FRAMES frames)
 $(B)/test/linner.sna: $(SRC) $(GEN)
 	mkdir -p $(B)/test
-	cd $(B)/test && $(RASM) -I../../src -I.. -DTEST_FRAMES=$(TEST_FRAMES) -DDEBUG=1 ../../src/main.asm \
+	cd $(B)/test && $(RASM) -I../../src -I.. -DTEST_FRAMES=$(TEST_FRAMES) -DDEBUG=1 $(TESTDEFS) ../../src/main.asm \
 	  -oi linner.sna -os linner.sym -s -sl 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > rasm.log; \
 	  if grep -qiE "error|warning" rasm.log; then cat rasm.log; rm -f linner.sna; exit 1; fi
 

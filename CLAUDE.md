@@ -11,8 +11,12 @@ Design: `linner_game_story.md`, plan: `milestones.md`.
   then the game jumps to &0000 and `CAP32_WAITBREAK` takes `build/shot.png`).
 - `make sim`: the same demo in `tools/cpcsim.py` (Python Z80, `--slow 1.25`
   approximates CPC wait states) with per-loop timing and `build/sim.png`.
-
-- `tools/bench_terrain.py [slopes]`: loop time per gear on zigzag terrain of
+- The test demo shifts up to gear 4 (loops 40/80/120) and an autopilot jumps
+  when a gap or water is 14 px ahead. `TESTDEFS=-DTEST_SOAK=1` rolls into
+  water instead, `-DTEST_SOAK=2` also stays in gear 1 (sinks, restarts);
+  `-DTEST_GEAR5=1` unlocks gear 5. Pass `-B` when changing TESTDEFS or
+  TEST_FRAMES (make doesn't track them).
+- `tools/bench_terrain.py [slopes | level.txt]`: loop time per gear on zigzag terrain of
   a fixed slope (cpcsim, gear 5 unlocked). Use it after touching the ground
   renderer or the speeds.
 
@@ -27,10 +31,26 @@ Design: `linner_game_story.md`, plan: `milestones.md`.
   `tools/level2asm.py` replays the Z80 terrain generator and fails the build
   if any 384-px window has more than MAX_CHANGED (150) columns that change
   at top speed (4 px/frame). In practice: long stretches flat or <= 1/8,
-  steep ramps (up to 45 deg) only short. Level 1: worst window 140 columns,
-  measured 8.2K (gear 1) to 12.5K (gear 5) average, 16.3K worst loop.
+  steep ramps (up to 45 deg) only short. Level 1 (with gaps): worst window
+  139 columns, measured 8.3K (gear 1) to 12.9K (gear 5) average, 16.7K
+  worst loop; the 1600-loop demo with jumps has no loop over budget.
 - Terrain keys round to nearest (segments start at y + 0.5, slopes rounded)
   so consecutive columns never jump more than one row; the tool checks it.
+
+## Game rules so far
+- Controls: LEFT/RIGHT shift gear (1..4, gear 5 locked), COPY or joystick
+  fire 2 jumps (hold for a full jump), SPACE / fire 1 is reserved for
+  shooting (Phase 5). UP/DOWN reserved for aiming.
+- Jump: vy -5 rows/frame, gravity 0.25, cut to -2 on release: 50 rows high,
+  40 frames long (40 px at gear 1 ... 140 px at gear 5). Linner lands only
+  coming from above (within LAND_TOL rows); once below a surface he keeps
+  falling. Grounded, he follows the ground unless it drops > DROP_MAX rows
+  in a frame (ledges, gap edges), then falls.
+- Gaps: falling off the bottom loses the life. Water: speed drains to 0.5
+  px/frame and the soggy meter (HUD bar) fills 1 per frame; at 80 he sinks.
+  Crossing fast or jumping is "traversing correctly". Dry ground drains it.
+- Losing a life restarts level 1 (`level_restart`: XOR Linner away,
+  `ground_wipe`, re-init, full redraw with the palette black).
 
 ## Architecture decisions (from the user)
 - Mode 1 full overscan, 384x272, **single buffer** at &8000-&FFFF (32K via
