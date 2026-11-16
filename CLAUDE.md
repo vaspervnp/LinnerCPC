@@ -30,7 +30,15 @@ Design: `linner_game_story.md`, plan: `milestones.md`.
 - `tools/hiscore.py [--where] disk.dsk` prints the table in a disk's
   HISCORE.DAT (and which track/sector it is on).
 - `make release`: build/release/linner-$(VERSION).zip (disc, snapshot,
-  release/README.txt, release/label.svg). DISC.BAS shows a loading screen.
+  release/README.txt, release/label.svg, the PDF manuals). DISC.BAS shows a
+  loading screen.
+- README.md (repo front page) and docs/manual_en.md / manual_el.md use the
+  shots in docs/screenshots/. `make screens` remakes them (tools/screens.sh:
+  no-DEBUG demo builds run in cpcsim to a fixed loop, since Caprice32 misses
+  an early &0000; the loading screen is a disc boot in Caprice32 with 30
+  padding keys). `make manuals` -> docs/manual_*.pdf (tools/manual2pdf.py:
+  Markdown -> HTML with embedded images -> headless Chrome; under WSL it
+  uses the Windows chrome.exe). Keep the manuals in step with game changes.
 - `tools/bench_terrain.py [slopes | level.txt]`: loop time per gear on
   zigzag terrain of a fixed slope or on a level (cpcsim, gear 5 unlocked,
   the demo autopilot shooting, Linner phased out so nothing ends the run).

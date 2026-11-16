@@ -68,6 +68,8 @@ linner.dsk     the game disc (DISC.BAS, LOADER.BIN, LINNER.BIN, HISCORE.DAT)
 linner.sna     snapshot of the game (starts at the title; no disc access,
                so high scores aren't saved)
 label.svg      a label for the disc
+manual_en.pdf  the player's manual (English)
+manual_el.pdf  the player's manual (Greek)
 
 
 TECHNICAL

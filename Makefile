@@ -8,6 +8,8 @@
 #   make sim        same demo in tools/cpcsim.py, with frame timings
 #   make hitest     high score save/load round trip on a disk in Caprice32
 #   make release    build/release/linner-$(VERSION).zip
+#   make screens    docs/screenshots/*.png (README and manuals)
+#   make manuals    docs/manual_en.pdf + docs/manual_el.pdf
 #   make clean
 
 RASM   := rasm -amper -v2
@@ -103,15 +105,27 @@ $(B)/hitest/linner.dsk: $(SRC) $(GEN) $(B)/loader.bin src/disc.bas tools/hiscore
 hitest: $(B)/hitest/linner.dsk
 	tools/cpcemu -timeout 120 -shot $(B)/hitest.png $(B)/hitest/linner.sna $(B)/hitest/linner.dsk
 
-# The release: the disc, the snapshot, the README and the disc label.
+# The release: the disc, the snapshot, the README, the disc label and the manuals.
 VERSION ?= 1.0
-release: all
+release: all manuals
 	rm -rf $(B)/release && mkdir -p $(B)/release/linner
-	cp $(B)/linner.dsk $(B)/linner.sna release/README.txt release/label.svg $(B)/release/linner/
+	cp $(B)/linner.dsk $(B)/linner.sna release/README.txt release/label.svg \
+	   docs/manual_en.pdf docs/manual_el.pdf $(B)/release/linner/
 	cd $(B)/release && zip -qr linner-$(VERSION).zip linner
 	@echo "release: $(B)/release/linner-$(VERSION).zip"
+
+# Screenshots for the README and the manuals (scripted demos in cpcsim, the
+# loading screen from a disc boot in Caprice32).
+screens: all
+	tools/screens.sh docs/screenshots
+
+# The manuals as PDF (tools/manual2pdf.py: Markdown -> HTML -> headless Chrome).
+docs/manual_%.pdf: docs/manual_%.md tools/manual2pdf.py $(wildcard docs/screenshots/*.png)
+	python3 tools/manual2pdf.py $< $@
+
+manuals: docs/manual_en.pdf docs/manual_el.pdf
 
 clean:
 	rm -rf $(B)
 
-.PHONY: all run run-dsk debug shot sim hitest release clean
+.PHONY: all run run-dsk debug shot sim hitest release screens manuals clean
