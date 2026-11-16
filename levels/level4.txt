@@ -1,0 +1,59 @@
+# Linner - level 4: the Bureau of Sharp Angles itself. Not much terrain,
+# but Rectangles and Triangles everywhere, and spikes between them.
+name The Bureau
+start 30
+time 55
+
+240 30  ground
+24  46  ground
+160 46  ground
+24  30  ground
+200 30  ground
+40  30  gap
+180 30  ground
+30  50  ground
+220 50  ground
+30  30  ground
+140 30  ground
+64  30  water
+200 30  ground
+24  48  ground
+120 48  ground
+56  48  gap
+160 48  ground
+30  28  ground
+240 28  ground
+24  44  ground
+140 44  ground
+24  28  ground
+180 28  ground
+72  28  gap
+200 28  ground
+20  30  ground
+220 30  ground
+
+# one Rectangle on every stretch of ground; spikes where none patrols
+foe 280  rect
+foe 380  tri 90
+foe 520  rect
+foe 640  tri 110
+foe 780 rect
+foe 700 tri 80
+foe 1000 rect
+foe 1220 tri 120
+foe 1180 rect
+foe 1440 rect
+foe 1340 tri 95
+foe 1680 tri 105
+foe 1840 rect
+foe 1950 tri 90
+foe 2100 rect
+foe 2220 tri 115
+foe 2400 rect
+foe 2560 tri 100
+foe 2850 tri 85
+foe 2720 rect
+item 1450 phase 80
+item 2300 speed 85
+trap 1620 spikes
+trap 2960 spikes

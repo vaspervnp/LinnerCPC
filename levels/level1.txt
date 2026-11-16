@@ -1,4 +1,5 @@
 # Linner - level 1
+name The Flat Line
 # A full jump lasts 40 frames: 40 px at gear 1, 60 at gear 2, 80 at gear 3,
 # 110 at gear 4, 140 at gear 5.
 # LEN ALT TYPE: the line runs LEN pixels to altitude ALT (0..126).
@@ -54,8 +55,8 @@ time 60
 50  22  ground      # 1/2 down
 150 22  ground
 60  22  water
-40  22  ground
-80  22  gap         # the chasm: gear 3 or faster
+140 22  ground
+72  22  gap         # the chasm: gear 3 or faster
 60  22  ground
 16  30  ground      # back up to the start altitude
 188 30  ground
@@ -64,21 +65,20 @@ time 60
 # foe X rect: a Rectangle starting X px into the level, marching on the Line
 # foe X tri ALT: a Triangle bobbing around altitude ALT (ground scale)
 foe 260  rect
-foe 520  tri 110
-foe 760  rect
+# (dropped for the frame budget) foe 680 tri 110
+foe 740 rect
 foe 1000 tri 120
 foe 1100 rect
-foe 1500 tri 115
-foe 1800 rect
-foe 2050 tri 125
-foe 2300 rect
-foe 2700 tri 105
+foe 1580 tri 115
+foe 1760 rect
+foe 2310 tri 125
+foe 2290 rect
+foe 2720 tri 105
 
 # --- Rhombus powerups and traps ----------------------------------------------
 # item X speed|phase ALT: a Rhombus hovering around altitude ALT
 # trap X spikes: spikes on the Line (jump them, or pass through as a ghost)
 item 620  speed 75
-trap 980  spikes
+trap 1300 spikes
 item 1450 phase 70
-trap 1880 spikes
-trap 2240 spikes
+trap 2025 spikes

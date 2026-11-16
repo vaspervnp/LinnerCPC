@@ -1,0 +1,71 @@
+# Linner - level 2: the Line learns to swell. Rolling hills, more Triangles,
+# gaps that want gear 2.
+name Swells
+start 40
+time 55
+
+200 40 ground
+30  60  ground      # first swell
+120 60  ground
+30  40  ground
+100 40  ground
+24  56  ground
+80  56  ground
+24  40  ground
+40  40  gap         # an easy hop
+100 40  ground
+30  20  ground      # down into a dip
+120 20  ground
+64  20  water
+60  20  ground
+36  50  ground      # out of it
+140 50  ground
+48  50  gap
+100 50  ground
+
+# --- the camel's back --------------------------------------------------------
+20  70  ground
+90  70  ground
+20  50  ground
+90  50  ground
+20  70  ground
+90  70  ground
+30  40  ground
+60  40  ground
+60  40  gap         # gear 2
+80  40  ground
+40  40  water
+40  40  ground
+30  60  ground
+160 60  ground
+40  30  ground
+100 30  ground
+64  30  gap         # gear 2, just
+100 30  ground
+
+# --- a last roller and home --------------------------------------------------
+20  50  ground
+70  50  ground
+20  30  ground
+70  30  ground
+20  50  ground
+70  50  ground
+20  40  ground
+200 40  ground
+
+foe 300  tri 100
+foe 420  rect
+foe 780 tri 80
+# (dropped for the frame budget) foe 1060 rect
+foe 970 tri 130
+foe 1250 tri 110
+foe 1400 rect
+foe 1760 tri 120
+foe 1670 rect
+foe 2150 tri 100
+foe 2460 rect
+foe 2900 tri 110
+foe 2700 rect
+item 1080 phase 90
+trap 2100 spikes
+trap 2880 spikes

@@ -10,9 +10,9 @@
 ; ground can be redrawn in any order without disturbing each other.
 ; ===========================================================================
 
-OBJECTS     equ &7600           ; 10 slots x 22 bytes
+OBJECTS     equ &7600           ; 9 slots x 22 bytes
 MAX_FOES    equ 6               ; things from the level (foes, items, traps)
-MAX_SHOTS   equ 4
+MAX_SHOTS   equ 3               ; (a 4th cost ~900 us a frame: see level2asm.py)
 MAX_OBJ     equ MAX_FOES+MAX_SHOTS
 OBJ_SIZE    equ 22
 SHOTS       equ OBJECTS+MAX_FOES*OBJ_SIZE
@@ -76,7 +76,7 @@ objects_init:
   ld bc,MAX_OBJ*OBJ_SIZE-1
   ld (hl),0
   ldir
-  ld hl,level1_foes
+  ld hl,(lv_foes)
   ld (spawn_ptr),hl
   ld hl,0
   ld (spawn_base),hl
@@ -408,7 +408,7 @@ obj_place:
   jr .off
 
 ; ---------------------------------------------------------------------------
-; Spawning: level1_foes is a list of (dw x, db type, db param) sorted by x,
+; Spawning: the level's foe list (levelN_foes) is a list of (dw x, db type, db param) sorted by x,
 ; ended by &FFFF. A thing appears when its x reaches the right screen edge.
 ; ---------------------------------------------------------------------------
 spawn_foes:

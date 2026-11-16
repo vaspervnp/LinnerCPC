@@ -17,6 +17,9 @@ GS_TITLE    equ 4               ; (hiscore.asm) from here on the game
 GS_ENTRY    equ 5               ; world isn't on screen
 
 START_LIVES equ 3
+  ifndef TEST_LEVEL
+TEST_LEVEL equ 1                ; tests: start at another level
+  endif
 READY_TIME  equ 90
 DONE_TIME   equ 100             ; after the bonus is counted
 OVER_TIME   equ 200
@@ -37,7 +40,7 @@ game_new:
   ld (score+1),hl
   endif
   ld (lives),a
-  ld a,1
+  ld a,TEST_LEVEL
   ld (level_num),a
   ; fall through
 
@@ -54,19 +57,39 @@ level_setup:
   ld a,(drawn_valid)
   or a
   call nz,ground_wipe
+  call level_load
   call terrain_init
   call hero_init
   call objects_init
-  ld hl,level1_time
+  ld hl,(lv_time)
   ld (time_left),hl
   ld a,50
   ld (time_tick),a
   call hud_draw
   call render
-  ld a,(level_num)              ; "LEVEL n  GET READY"
+  ld hl,txt_ready               ; "LEVEL n: NAME"
+  ld de,msg_buf
+  ld bc,6
+  ldir
+  ld a,(level_num)
   add a,"0"
-  ld (txt_level_n),a
-  ld de,txt_ready
+  ld (de),a
+  inc de
+  ld a,":"
+  ld (de),a
+  inc de
+  ld a," "
+  ld (de),a
+  inc de
+  ld hl,(lv_name)
+.name:
+  ld a,(hl)
+  ld (de),a
+  inc hl
+  inc de
+  or a
+  jr nz,.name
+  ld de,msg_buf
   call msg_show
   ld a,GS_READY
   ld b,READY_TIME
@@ -75,6 +98,25 @@ level_setup:
   xor a
   ld (frame_drops),a            ; the set-up itself is allowed to take long
   jp palette_set
+
+; Copy level_num's entry of level_table into lv_segs.. (same order).
+level_load:
+  ld a,(level_num)
+  dec a
+  ld l,a
+  ld h,0
+  add hl,hl                     ; * LEVEL_ENTRY (12)
+  add hl,hl
+  ld d,h
+  ld e,l
+  add hl,hl
+  add hl,de
+  ld de,level_table
+  add hl,de
+  ld de,lv_segs
+  ld bc,LEVEL_ENTRY
+  ldir
+  ret
 
 ; A = state, B = frames in it (for the timed ones).
 game_state_set:
@@ -119,7 +161,7 @@ game_play:
   ld hl,(scroll_wx)             ; past the finish post?
   ld de,HERO_X
   add hl,de
-  ld de,level1_goal
+  ld de,(lv_goal)
   or a
   sbc hl,de
   jr nc,.finish
@@ -179,13 +221,23 @@ game_complete:
   dec (hl)
   ret nz
   ld hl,level_num
-  inc (hl)
   ld a,(hl)
-  cp 10
-  jr c,.next
-  ld (hl),1
-.next:
+  cp LEVEL_COUNT
+  jr nc,game_won
+  inc (hl)
   jp level_setup
+
+; Past the last finish post: the game is won (then the table, as after a
+; game over).
+game_won:
+  ld de,txt_won
+  call msg_show
+  ld a,GS_OVER
+  ld b,OVER_TIME
+  call game_state_set
+  ld a,1
+  ld (hero_state),a
+  ret
 
 ; hero_dying ran out: one life less.
 game_life_lost:
@@ -318,7 +370,7 @@ msg_hide:
   ret
 
 txt_ready:    db "LEVEL "
-txt_level_n:  db "1  GET READY",0
+txt_won:      db "THE LINE IS YOURS!",0
 txt_complete: db "LEVEL COMPLETE!",0
 txt_time_up:  db "TIME UP!",0
 txt_game_over: db "GAME OVER",0

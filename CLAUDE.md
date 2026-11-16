@@ -11,14 +11,14 @@ Design: `linner_game_story.md`, plan: `milestones.md`.
   then the game jumps to &0000 and `CAP32_WAITBREAK` takes `build/shot.png`).
 - `make sim`: the same demo in `tools/cpcsim.py` (Python Z80, `--slow 1.25`
   approximates CPC wait states) with per-loop timing and `build/sim.png`.
-- The test demo shifts up to gear 4 (loops 130/170/210, after READY), aims
-  straight ahead and keeps FIRE held; an autopilot jumps when a gap or water
-  is 14 px ahead or a Rectangle / spikes are within 24 px.
-  `-DTEST_GHOST=1` keeps Linner phased out (reaches the finish: level
-  complete, bonus, level 2). `TESTDEFS=-DTEST_SOAK=1` rolls into
-  water instead, `-DTEST_SOAK=2` also stays in gear 1 (sinks, restarts);
-  `-DTEST_GEAR5=1` unlocks gear 5. Pass `-B` when changing TESTDEFS or
-  TEST_FRAMES (make doesn't track them).
+- The test demo (autopilot) shifts up every 16 loops while the gear is below
+  max_gear (4; 5 with Max Speed or `-DTEST_GEAR5=1`), aims straight ahead
+  and 30 degrees up by turns (32 loops each), keeps FIRE held; it jumps when a gap or water is 4 px ahead of
+  Linner's centre or a Rectangle / spikes are within 24 px (as a ghost:
+  gaps only). `-DTEST_GHOST=1` keeps Linner phased out, `-DTEST_LEVEL=n`
+  starts at level n. `TESTDEFS=-DTEST_SOAK=1` rolls into water instead,
+  `-DTEST_SOAK=2` also stays in gear 1 (sinks, restarts). Pass `-B` when
+  changing TESTDEFS or TEST_FRAMES (make doesn't track them).
 - The game boots into the title: test builds press FIRE there as soon as it
   takes input (25 frames), so the demo starts a couple of loops later.
 - `make hitest`: high score round trip on a real disk image in Caprice32
@@ -29,6 +29,8 @@ Design: `linner_game_story.md`, plan: `milestones.md`.
   built-in table would mean the save or the load failed).
 - `tools/hiscore.py [--where] disk.dsk` prints the table in a disk's
   HISCORE.DAT (and which track/sector it is on).
+- `make release`: build/release/linner-$(VERSION).zip (disc, snapshot,
+  release/README.txt, release/label.svg). DISC.BAS shows a loading screen.
 - `tools/bench_terrain.py [slopes | level.txt]`: loop time per gear on
   zigzag terrain of a fixed slope or on a level (cpcsim, gear 5 unlocked,
   the demo autopilot shooting, Linner phased out so nothing ends the run).
@@ -47,11 +49,12 @@ Design: `linner_game_story.md`, plan: `milestones.md`.
 - Level design rule (the user chose a slope budget over frame drops):
   `tools/level2asm.py` replays the Z80 terrain generator and fails the build
   if any 384-px window has more than MAX_CHANGED (120) changing columns.
-- Level 1 (Phase 6): worst window 92 columns. 3000-loop demos: normal run
-  render avg 6.1K + logic 3.9K, no loop over except the level resets (which
-  happen with the palette black); ghost run (Max Speed, hills, 4 shots)
-  has one loop 46 us over. bench (gear 5, ghost): 9.2K..14.7K average per
-  gear, 18.9K worst.
+- Phase 8, all six levels (2400-loop cpcsim runs per level, ghost + gear 5
+  and normal autopilot): no gameplay loop over budget except the frame a
+  finish message is printed (~21K, once) and 3 loops in level 6 (~20.1K,
+  Linner jumping on a slope with 3 things + 3 shots). Level resets go over
+  by design (palette black). 3000-loop demos: normal render avg 6.9K +
+  logic 4.0K, ghost 7.5K + 4.3K; both pixel-exact.
 - The HUD does at most one job per frame (a digit, a gear box or the
   soggy bar), so a score change never spikes a frame.
 - Terrain keys round to nearest (segments start at y + 0.5, slopes rounded)
@@ -61,12 +64,13 @@ Design: `linner_game_story.md`, plan: `milestones.md`.
 - Controls: LEFT/RIGHT shift gear (1..4, gear 5 locked), COPY or joystick
   fire 2 jumps (hold for a full jump), UP/DOWN aim (19 steps of 10 degrees,
   0 = straight ahead, 9 = up, 18 = behind; repeats when held), SPACE /
-  fire 1 shoots (hold: one shot every 8 frames, 4 in flight at most).
+  fire 1 shoots (hold: one shot every 8 frames, 3 in flight at most: a
+  4th cost ~900 us a frame).
 - The ray keeps rolling with the distance (Phase 3); the aim is a short
   tick just outside the rim. Shots start at the tick, fly at 5 px/frame
   plus Linner's speed, and stop at the Line, the screen edges or a foe.
 - Foes (objects.asm, spawned from `foe` lines in the level; 6 slots for
-  foes, items and traps, 4 for shots):
+  foes, items and traps, 3 for shots):
   Rectangles (16x12) march along the Line at 0.5 px/frame and turn back at
   gaps and water; Triangles (15x13) drift at 1 px/frame bobbing +-12 rows
   and stay above the Line. Linner can't shoot downwards: a Rectangle lower
@@ -80,9 +84,10 @@ Design: `linner_game_story.md`, plan: `milestones.md`.
 - Gaps: falling off the bottom loses the life. Water: speed drains to 0.5
   px/frame and the soggy meter (HUD bar) fills 1 per frame; at 80 he sinks.
   Crossing fast or jumping is "traversing correctly". Dry ground drains it.
-- Game flow (game.asm): READY ("LEVEL n  GET READY", 90 frames frozen) ->
+- Game flow (game.asm): READY ("LEVEL n: NAME", 90 frames frozen) ->
   PLAY -> past the finish post: COMPLETE (Linner coasts, every second left
-  = 10 points, then the next level; there is only level 1's data so far) ->
+  = 10 points, then the next level; after the last one "THE LINE IS
+  YOURS!" and the same ending as a game over) ->
   ... Losing a life restarts the level (`level_setup`: palette black, XOR
   everything away, ground_wipe, re-init, full redraw); 3 lives, then GAME
   OVER (4 s), the name entry if the score makes the Top 10, and the title.
@@ -127,6 +132,37 @@ Design: `linner_game_story.md`, plan: `milestones.md`.
   21..33 end at &C4DF in each 2K row block of the &C000 page).
 - Scripted demos (TEST_FRAMES without TEST_HISCORE) skip the disk.
 
+## Levels (levels/levelN.txt -> build/levels.asm)
+- `tools/level2asm.py out.asm levels/level1.txt ...` (the Makefile passes
+  every levels/level*.txt in order) emits levelN data and `level_table`
+  (12 bytes per level: segments, foes, goal, time, name, start key);
+  `level_load` copies the current entry into lv_segs..lv_key.
+- Besides the slope budget the tool checks, and fails the build on:
+  each gap's gear (a full jump of 40ish frames at the gear's speed must
+  cover the gap minus GAP_EDGE = 8 px; gear 5 only with a speed Rhombus
+  at most 3000 px before), each water stretch's gear (jump in from the
+  edge, then roll until SOGGY_MAX), Rectangles / spikes over gaps or
+  water, more than 6 things within 450 px (slots: extra ones never
+  appear), a time limit under 1.3 x the level's length at gear 3-4, and
+  a screen whose predicted loop time passes 19968 - 1500 us.
+- Frame cost model (fitted on cpcsim runs of all levels, see frame_cost):
+  ~4541 us + 74 per changing ground column (at 4 px/frame) + 1389 per
+  foe/item/trap alive (384 px ahead to 40 px behind the screen) + 899 per
+  shot (counted as all 3). Objects cost far more than slopes: busy
+  screens must be flat. The worst level screens are ~17.5K; the 1.5K
+  margin plus the 4th shot dropped cover the model's p99 error (~2.4K:
+  jumps redraw the whole circle, spawns, HUD digits).
+- Fairness warnings (not errors; the levels have none): a Triangle meets
+  Linner 65..125 px before its x (it drifts left as he comes): not over a
+  gap / water / spikes if its bob reaches a full jump's top; spikes or a
+  Rectangle start at least 80 px from a gap / water edge (landings); no
+  spikes within 160 px of a Rectangle on its stretch.
+- Checking a level: build `-DTEST_LEVEL=n` (with or without TEST_GHOST +
+  TEST_GEAR5) and run it in cpcsim; the ghost autopilot finishes all six,
+  the normal one levels 1-4 (5 needs Max Speed for the chasm).
+- Levels: 1 The Flat Line, 2 Swells, 3 Water Lines, 4 The Bureau,
+  5 Chasms (a gear-5 chasm after a speed Rhombus), 6 End of the Line.
+
 ## Architecture decisions (from the user)
 - Mode 1 full overscan, 384x272, **single buffer** at &8000-&FFFF (32K via
   the R12 bits 2-3 trick, R12/R13 = &2C/&10 so charline 21 starts exactly at
@@ -159,6 +195,13 @@ Design: `linner_game_story.md`, plan: `milestones.md`.
   the drive up for a second (fewer and the screenshot catches a black
   screen). `CAP32_WAITBREAK` can't be used for a disk boot: the boot
   itself passes &0000.
+- CPCEMU 2.5 (/usr/share/cpcemu, native SDL) has no headless mode:
+  `tools/cpcemu25 [-keys "space Right"] -shot out.png file.dsk|sna` runs a
+  private copy (build/cpcemu-run) on the desktop, sends keys with xdotool
+  after the boot, grabs the window with tools/xgrab.py (its own
+  PrintScreen BMP is blank) and stops it. Verified there: the disc boots,
+  the game plays, the FDC save + read back works (hitest snapshot with
+  `-disc`); whether CPCEMU writes the image file back wasn't confirmed.
 - `tools/cpcemu` takes several images (e.g. a snapshot plus a .dsk for
   drive A). Caprice32 can't save a written .dsk headless (it only asks
   "Unsaved changes..." on quit, which is why cpcemu stops it once the

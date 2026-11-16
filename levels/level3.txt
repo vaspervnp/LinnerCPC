@@ -1,0 +1,74 @@
+# Linner - level 3: the Bureau floods the Line. Water lines everywhere:
+# cross them fast, jump into them, or turn into a ghost.
+name Water Lines
+start 50
+time 55
+
+180 50  ground
+40  50  water       # a puddle: roll through it
+80  50  ground
+24  66  ground
+100 66  ground
+60  66  water
+60  66  ground
+40  46  ground
+50  46  ground
+80  46  water       # jump in from the edge
+40  46  ground
+30  30  ground
+80  30  ground
+40  30  gap
+20  30  ground
+60  30  water       # straight after the gap: no run-up
+80  30  ground
+36  60  ground
+120 60  ground
+
+# --- the canal ---------------------------------------------------------------
+30  40  ground
+60  40  ground
+96  40  water
+30  40  ground
+96  40  water
+60  40  ground
+20  56  ground
+80  56  ground
+48  56  gap
+80  56  ground
+30  36  ground
+40  36  ground
+110 36  water       # the long one: gear 3 and a jump, or the Rhombus
+40  36  ground
+30  60  ground
+80  60  ground
+
+# --- terraces -----------------------------------------------------------------
+16  48  ground
+40  48  water
+70  48  ground
+16  36  ground
+40  36  water
+70  36  ground
+16  24  ground
+60  24  water
+60  24  ground
+30  54  ground
+130 54  ground
+56  54  gap
+80  54  ground
+20  50  ground
+200 50  ground
+
+foe 310 rect
+foe 620 tri 120
+# (dropped for the frame budget) foe 1080 rect
+foe 680 tri 100
+foe 1180 rect
+foe 1660 tri 110
+foe 1950 tri 100
+foe 2600 rect
+foe 2450 tri 120
+item 1240 phase 100
+item 2060 phase 90
+trap 1620 spikes
+trap 2840 spikes

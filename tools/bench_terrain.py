@@ -35,7 +35,7 @@ def bench(m):
     os.makedirs(d, exist_ok=True)
     with open(os.path.join(d, "level.txt"), "w") as f:
         f.write(open(m).read() if isinstance(m, str) else level_text(m))
-    subprocess.run(["python3", "tools/level2asm.py", f"{d}/level.txt", "level1", f"{d}/level1.asm", "--no-budget"],
+    subprocess.run(["python3", "tools/level2asm.py", f"{d}/levels.asm", f"{d}/level.txt", "--no-budget"],
                    cwd=ROOT, check=True, stdout=subprocess.DEVNULL)
     r = subprocess.run(["rasm", "-amper", "-v2", "-I.", "-I../../src", "-I..", "-DTEST_FRAMES=600",
                         "-DDEBUG=1", "-DTEST_GEAR5=1", "-DTEST_GHOST=1", "../../src/main.asm", "-oi", "linner.sna"],

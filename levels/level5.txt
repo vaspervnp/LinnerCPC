@@ -1,0 +1,57 @@
+# Linner - level 5: the Bureau digs. Chasms that want gear 3 and 4, one
+# that only Max Speed clears, plateaus to land on.
+name Chasms
+start 40
+time 50
+
+200 40  ground
+48  40  gap         # warm-up: gear 2
+120 40  ground
+30  60  ground
+100 60  ground
+72  60  gap         # gear 3
+140 60  ground
+40  40  ground
+160 40  ground
+96  40  gap         # gear 4
+160 40  ground
+30  20  ground
+120 20  ground
+80  20  water
+40  20  ground
+40  50  ground
+80  50  ground
+64  50  gap
+100 50  ground      # a ledge between two gaps
+64  50  gap
+160 50  ground
+
+# --- Max Speed, then the Great Chasm -----------------------------------------
+200 50  ground
+40  30  ground
+120 30  ground
+140 30  gap         # gear 5 only
+200 30  ground
+30  50  ground
+80  50  ground
+100 50  gap         # still fast? good
+120 50  ground
+30  70  ground
+100 70  ground
+80  70  gap
+120 70  ground
+40  40  ground
+220 40  ground
+
+foe 400  tri 110
+foe 660 rect
+foe 900  tri 100
+foe 1210 tri 90
+foe 1900 rect
+foe 1600 tri 110
+foe 2060 rect
+foe 2340 tri 120
+foe 2610 rect
+item 1780 speed 90
+trap 1160 spikes
+trap 2280 spikes

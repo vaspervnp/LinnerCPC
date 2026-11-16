@@ -1,0 +1,82 @@
+# Linner - level 6: the end of the Line. Everything the Bureau has, and
+# a clock that doesn't wait for gear 2.
+name End of the Line
+start 40
+time 45
+
+160 40  ground
+30  60  ground
+100 60  ground
+56  60  gap
+100 60  ground
+40  40  ground
+80  40  ground
+96  40  water
+60  40  ground
+30  20  ground
+120 20  ground
+80  20  gap         # gear 3
+120 20  ground
+40  50  ground
+120 50  ground
+24  66  ground
+80  66  ground
+64  66  water
+40  66  ground
+50  36  ground
+160 36  ground
+
+# --- the gauntlet --------------------------------------------------------------
+72  36  gap
+60  36  ground
+48  36  water
+60  36  ground
+24  52  ground
+100 52  ground
+96  52  gap         # gear 4
+140 52  ground
+40  30  ground
+100 30  ground
+110 30  water
+80  30  ground
+30  50  ground
+60  50  ground
+64  50  gap
+100 50  ground
+64  50  gap
+140 50  ground
+
+# --- the last stretch ------------------------------------------------------------
+40  70  ground
+120 70  ground
+104 70  gap
+140 70  ground
+60  40  ground
+100 40  ground
+130 40  gap         # gear 5: grab the Rhombus
+160 40  ground
+20  40  ground
+200 40  ground
+
+foe 2660 tri 110
+foe 620 tri 90
+foe 1000 tri 100
+foe 1640 tri 130
+foe 1700 tri 100
+foe 2140 tri 90
+foe 3100 tri 110
+foe 2960 tri 120
+foe 3360 tri 100
+item 1240 phase 100
+item 2450 speed 110
+foe 450  rect
+foe 760  rect
+# (dropped for the frame budget) foe 1540 rect
+foe 1500 rect
+foe 2190 rect
+foe 3040 rect
+foe 3900 rect
+trap 1040 spikes
+trap 1920 spikes
+trap 2630 spikes
+trap 3390 spikes

@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# Smoke-test in CPCEMU 2.5 (/usr/share/cpcemu): run an image in a private copy
+# of the emulator (so its config and discs can be changed), wait, save the
+# window to a PNG, stop it. The window shows up on the desktop meanwhile.
+#
+#   tools/cpcemu25 [-wait secs] [-disc a.dsk] [-keys "xdotool keys"] [-keydelay secs]
+#                  -shot out.png <file.sna|file.dsk>
+#
+# A .dsk boots by itself (DRIVE_A_AUTOSTART); -disc puts a disc in drive A
+# for a snapshot. -keys (xdotool key syntax) are sent -keydelay seconds after
+# the window opens (default 20: keys typed while a disc boots spoil RUN"DISC),
+# then -wait seconds pass before the screenshot.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+WAIT=20; DISC=""; KEYS=""; SHOT=""; KEYDELAY=20
+while [[ $# -gt 1 ]]; do
+  case "$1" in
+    -wait) WAIT="$2"; shift 2 ;;
+    -disc) DISC="$2"; shift 2 ;;
+    -keys) KEYS="$2"; shift 2 ;;
+    -keydelay) KEYDELAY="$2"; shift 2 ;;
+    -shot) SHOT="$2"; shift 2 ;;
+    *) echo "unknown option $1" >&2; exit 2 ;;
+  esac
+done
+IMAGE="$1"
+RUN=build/cpcemu-run
+rm -rf "$RUN" && cp -r /usr/share/cpcemu "$RUN"
+cp "$IMAGE" "$RUN/DISC/" 2>/dev/null || true
+ARG="DISC/$(basename "$IMAGE")"
+if [[ "$IMAGE" == *.sna ]]; then cp "$IMAGE" "$RUN/SNAP/"; ARG="SNAP/$(basename "$IMAGE")"; fi
+if [[ -n "$DISC" ]]; then
+  cp "$DISC" "$RUN/DISC/drivea.dsk"
+  sed -i 's|^DRIVE_A = .*|DRIVE_A = "./DISC/drivea.dsk"|' "$RUN/cpcemu0.cfg"
+fi
+( cd "$RUN" && exec ./cpcemu -t 2 "$ARG" >run.log 2>&1 ) &
+PID=$!
+W=""
+for _ in $(seq 1 40); do
+  W=$(xdotool search --pid "$PID" --name CPCemu 2>/dev/null | head -1 || true)
+  [[ -n "$W" ]] && break
+  sleep 0.5
+done
+[[ -z "$W" ]] && { kill "$PID" 2>/dev/null; echo "cpcemu25: no window" >&2; exit 1; }
+if [[ -n "$KEYS" ]]; then
+  sleep "$KEYDELAY"
+  xdotool windowfocus "$W"
+  for k in $KEYS; do xdotool keydown "$k"; sleep 0.15; xdotool keyup "$k"; sleep 0.25; done
+fi
+sleep "$WAIT"
+[[ -n "$SHOT" ]] && python3 tools/xgrab.py "$W" "$SHOT" >/dev/null
+kill "$PID" 2>/dev/null || true
+wait "$PID" 2>/dev/null || true
+echo "cpcemu25: OK${SHOT:+ -> $SHOT}"

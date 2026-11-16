@@ -8,7 +8,7 @@
 ;   &7000-&73FF   terrain key ring (mirrored)
 ;   &7400-&757F   384 gap keys (the "old" ground of the first frame)
 ;   &7580-&75DF   scratch row: gap columns "draw" here
-;   &7600-&76AF   object slots: 4 foes, 4 shots
+;   &7600-&76C5   object slots: 6 foes/items/traps, 3 shots
 ;   &7800-&7BFF   terrain run lengths (mirrored like the key ring)
 ;   &7C00-&7FFF   stack
 ;   &8000-&FFFF   the screen: Mode 1 overscan 384x272, single buffer
@@ -106,8 +106,6 @@ main_loop:
 ; autopilot that jumps when a gap or water line is just ahead (holding the
 ; button for a full jump). After TEST_FRAMES loops we jump to &0000, where
 ; Caprice32's CAP32_WAITBREAK and tools/cpcsim.py stop.
-test_script:
-  db 130, 170, 210, 250, 0      ; loops that press RIGHT (gear up; READY ends ~95)
 test_input:
   ld hl,(test_frame)
   inc hl
@@ -123,23 +121,19 @@ test_input:
   cp GS_ENTRY
   jp z,test_entry
   ld c,0                        ; C = pad bits this loop
-  if TEST_SOAK == 2               ; stay in gear 1: too slow for the water
-  jr .auto
-  endif
-  ld a,h
-  or a
-  jr nz,.auto
+  if TEST_SOAK != 2             ; (2: stay in gear 1, too slow for the water)
+  ld a,(game_state)             ; playing: shift up every 16 loops while
+  cp GS_PLAY                    ; the gear is below the limit (4, or 5 with
+  jr nz,.auto                   ; Max Speed or TEST_GEAR5)
   ld a,l
-  ld hl,test_script
-.lp:
-  ld b,(hl)
-  inc b
-  dec b
+  and 15
+  jr nz,.auto
+  ld a,(max_gear)
+  ld hl,gear
+  cp (hl)
   jr z,.auto
-  inc hl
-  cp b
-  jr nz,.lp
   ld c,1<<PAD_RIGHT
+  endif
 .auto:
   ld a,(hero_grounded)
   or a
@@ -152,12 +146,17 @@ test_input:
   add hl,de
   call ring_addr
   ld a,(hl)
-  if TEST_SOAK
-  inc a                         ; TEST_SOAK: only jump gaps, roll into water
-  jr z,.jump
-  else
-  cp KEY_WATER
-  jr nc,.jump                   ; gap or water ahead
+  inc a
+  jr z,.jump                    ; a gap ahead
+  if TEST_SOAK == 0             ; (TEST_SOAK: roll into water)
+  ld b,a
+  push bc                       ; (C holds the pad bits)
+  call hero_phased              ; a ghost doesn't mind water or foes
+  pop bc
+  jr z,.set
+  ld a,b
+  cp KEY_WATER+1
+  jr nc,.jump                   ; water ahead
   endif
   ld ix,OBJECTS                 ; a Rectangle or spikes close ahead: jump
   ld b,MAX_FOES
@@ -194,6 +193,12 @@ test_input:
   or 1<<PAD_JUMP
   ld c,a
 .set:
+  ld a,(test_frame)             ; aim straight ahead, then 30 degrees up
+  and 32                        ; (Triangles), 32 loops each
+  jr z,.aim
+  ld a,3
+.aim:
+  ld (hero_aim),a
   ld a,c                        ; keep firing
   or 1<<PAD_FIRE
   ld c,a
@@ -204,7 +209,8 @@ test_input:
   ld a,c
   ld (pad),a
   ret
-TEST_LOOKAHEAD equ LINNER_R+4
+TEST_LOOKAHEAD equ 4            ; jump when the gap / water is this far ahead
+                                ; of Linner's centre (late, for a long jump)
 
 ; Title: press FIRE (once the title takes input), but not after a name
 ; entry: the test ends there, showing the table.
@@ -324,7 +330,7 @@ TEST_NAME_END equ 64
   include "hiscore.asm"
   include "disk.asm"
   include "tables.asm"
-  include "level1.asm"
+  include "levels.asm"
 
   assert (pix_mask and &FF) == 0
 
@@ -403,6 +409,14 @@ hud_box:        defs 5          ; the look each gear box has on screen
 spawn_ptr:      dw 0
 spawn_base:     dw 0
 gu_min:         db 0
+; the current level (a copy of its level_table entry)
+lv_segs:        dw 0
+lv_foes:        dw 0
+lv_goal:        dw 0
+lv_time:        dw 0
+lv_name:        dw 0
+lv_key:         db 0,0
+msg_buf:        defs 28
 ; high scores and the disk
 hiscores:       defs HS_COUNT*HS_SIZE
 title_hl:       db 0

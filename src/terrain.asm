@@ -21,9 +21,9 @@ GAPS      equ &7400             ; 384 x KEY_GAP: "old keys" for the first draw
 
 ; Start the level: generator at the first segment, screen ground empty.
 terrain_init:
-  ld hl,level1
+  ld hl,(lv_segs)
   ld (gen_ptr),hl
-  ld a,level1_start_key
+  ld a,(lv_key)
   ld (gen_y+1),a
   ld a,&80                      ; half a row in, so the keys round
   ld (gen_y),a

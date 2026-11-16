@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="70mm" height="56mm" viewBox="0 0 700 560">
+  <!-- Amstrad 3" disc label: print at 100% and trim -->
+  <rect x="0" y="0" width="700" height="560" fill="#000"/>
+  <rect x="12" y="12" width="676" height="536" fill="none" stroke="#2f2" stroke-width="4"/>
+  <text x="350" y="120" fill="#fff" font-family="monospace" font-size="84" font-weight="bold"
+        text-anchor="middle" letter-spacing="28">LINNER</text>
+  <text x="350" y="170" fill="#8cf" font-family="monospace" font-size="26"
+        text-anchor="middle">a pointless journey</text>
+  <!-- The Line, warped: a ramp, a gap, Water, and Linner with his ray -->
+  <polyline points="40,400 170,400 210,350 300,350" fill="none" stroke="#2f2" stroke-width="6"/>
+  <polyline points="350,350 420,350" fill="none" stroke="#2f2" stroke-width="6"/>
+  <polyline points="420,350 520,350" fill="none" stroke="#4af" stroke-width="6"/>
+  <polyline points="520,350 560,300 660,300" fill="none" stroke="#2f2" stroke-width="6"/>
+  <circle cx="250" cy="314" r="33" fill="none" stroke="#fff" stroke-width="6"/>
+  <line x1="250" y1="314" x2="276" y2="293" stroke="#fff" stroke-width="6"/>
+  <line x1="290" y1="282" x2="302" y2="272" stroke="#fff" stroke-width="6"/>
+  <polygon points="470,230 490,265 450,265" fill="none" stroke="#fff" stroke-width="5"/>
+  <rect x="590" y="262" width="44" height="34" fill="none" stroke="#fff" stroke-width="5"/>
+  <text x="350" y="470" fill="#fff" font-family="monospace" font-size="30"
+        text-anchor="middle">RUN"DISC</text>
+  <text x="350" y="515" fill="#2f2" font-family="monospace" font-size="20"
+        text-anchor="middle">Amstrad CPC 464/664/6128 - keep writable: high scores</text>
+</svg>

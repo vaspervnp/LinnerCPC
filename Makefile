@@ -6,12 +6,15 @@
 #   make debug      play the DEBUG build: border colours show the frame time
 #   make shot       headless Caprice32 run of the scripted demo -> build/shot.png
 #   make sim        same demo in tools/cpcsim.py, with frame timings
+#   make hitest     high score save/load round trip on a disk in Caprice32
+#   make release    build/release/linner-$(VERSION).zip
 #   make clean
 
 RASM   := rasm -amper -v2
 B      := build
 SRC    := $(wildcard src/*.asm)
-GEN    := $(B)/tables.asm $(B)/level1.asm
+LEVELS := $(sort $(wildcard levels/level*.txt))
+GEN    := $(B)/tables.asm $(B)/levels.asm
 EMU    ?= caprice32
 DEFS   ?=
 TEST_FRAMES ?= 300
@@ -24,8 +27,8 @@ $(B):
 $(B)/tables.asm: tools/gen_tables.py | $(B)
 	python3 tools/gen_tables.py $@
 
-$(B)/level1.asm: levels/level1.txt tools/level2asm.py | $(B)
-	python3 tools/level2asm.py $< level1 $@
+$(B)/levels.asm: $(LEVELS) tools/level2asm.py | $(B)
+	python3 tools/level2asm.py $@ $(LEVELS)
 
 # rasm writes linner.bin (SAVE directive), the snapshot and the symbols
 $(B)/linner.sna: $(SRC) $(GEN)
@@ -88,7 +91,7 @@ sim: $(B)/test/linner.sna
 # High score round trip on the disk: one life, sink, enter "CPC64" (pad and
 # typed keys), save HISCORE.DAT with the FDC, read it back; the title then
 # shows what the disk holds -> build/hitest.png.
-HITEST_FRAMES ?= 1500
+HITEST_FRAMES ?= 2000
 $(B)/hitest/linner.dsk: $(SRC) $(GEN) $(B)/loader.bin src/disc.bas tools/hiscore.py
 	mkdir -p $(B)/hitest
 	cd $(B)/hitest && $(RASM) -I../../src -I.. -DTEST_FRAMES=$(HITEST_FRAMES) -DDEBUG=1 \
@@ -100,7 +103,15 @@ $(B)/hitest/linner.dsk: $(SRC) $(GEN) $(B)/loader.bin src/disc.bas tools/hiscore
 hitest: $(B)/hitest/linner.dsk
 	tools/cpcemu -timeout 120 -shot $(B)/hitest.png $(B)/hitest/linner.sna $(B)/hitest/linner.dsk
 
+# The release: the disc, the snapshot, the README and the disc label.
+VERSION ?= 1.0
+release: all
+	rm -rf $(B)/release && mkdir -p $(B)/release/linner
+	cp $(B)/linner.dsk $(B)/linner.sna release/README.txt release/label.svg $(B)/release/linner/
+	cd $(B)/release && zip -qr linner-$(VERSION).zip linner
+	@echo "release: $(B)/release/linner-$(VERSION).zip"
+
 clean:
 	rm -rf $(B)
 
-.PHONY: all run run-dsk debug shot sim hitest clean
+.PHONY: all run run-dsk debug shot sim hitest release clean
