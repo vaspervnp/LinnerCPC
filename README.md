@@ -44,8 +44,8 @@ disc. Add `EMU=cpcemu` to use CPCEMU instead.
 |---|---|---|
 | Shift gear up / down | RIGHT / LEFT | right / left |
 | Aim the ray up / down | UP / DOWN | up / down |
-| Shoot | SPACE | fire 1 |
-| Jump (hold for a full jump) | COPY | fire 2 |
+| Shoot | Z | fire 1 |
+| Jump (hold for a full jump) | SPACE | fire 2 |
 
 ### The rules in brief
 

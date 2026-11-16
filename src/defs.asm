@@ -44,7 +44,7 @@ KEY_UP          equ &00
 KEY_RIGHT       equ &01
 KEY_DOWN        equ &02
 KEY_LEFT        equ &10
-KEY_COPY        equ &11
+KEY_Z           equ &87
 KEY_SPACE       equ &57
 KEY_ESC         equ &82
 JOY_UP          equ &90

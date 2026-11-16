@@ -61,11 +61,11 @@ touch the disc, so high scores aren't saved.
 | Shift gear down | LEFT | left |
 | Aim the ray up | UP | up |
 | Aim the ray down | DOWN | down |
-| Shoot | SPACE | fire 1 |
-| Jump (hold for a full jump) | COPY | fire 2 |
-| Start a game (title screen) | SPACE or COPY | fire 1 or fire 2 |
+| Shoot | Z | fire 1 |
+| Jump (hold for a full jump) | SPACE | fire 2 |
+| Start a game (title screen) | Z or SPACE | fire 1 or fire 2 |
 
-Holding UP or DOWN keeps turning the ray; holding SPACE keeps shooting.
+Holding UP or DOWN keeps turning the ray; holding Z keeps shooting.
 
 ## The screen
 
@@ -103,7 +103,7 @@ for 20 seconds; after that Linner drops back to gear 4.
 
 ## Jumping
 
-Press COPY (fire 2) to jump. **Hold it** for a full jump: 50 rows high and
+Press SPACE (fire 2) to jump. **Hold it** for a full jump: 50 rows high and
 40 frames long. Release it early for a shorter hop. How far a jump carries
 Linner depends on the gear (see the table above).
 
@@ -118,9 +118,9 @@ outside his rim shows where he is **aiming**. UP and DOWN turn the aim in
 10-degree steps, from straight ahead, through straight up, to straight
 behind.
 
-SPACE (fire 1) **shoots** from the tick. A shot flies at 5 pixels a frame
+Z (fire 1) **shoots** from the tick. A shot flies at 5 pixels a frame
 plus Linner's own speed, and stops when it hits a foe, The Line or the edge
-of the screen. Hold SPACE to keep firing, one shot every 8 frames. At most
+of the screen. Hold Z to keep firing, one shot every 8 frames. At most
 **3 shots** can be in flight at once.
 
 Linner can't shoot downwards. A Rectangle lower down than him has to be

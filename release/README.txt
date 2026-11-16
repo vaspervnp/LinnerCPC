@@ -23,8 +23,8 @@ CONTROLS                      keyboard              joystick
 --------
 Shift gear up / down          RIGHT / LEFT          right / left
 Aim the ray up / down         UP / DOWN             up / down
-Shoot                         SPACE                 fire 1
-Jump (hold for a full jump)   COPY                  fire 2
+Shoot                         Z                     fire 1
+Jump (hold for a full jump)   SPACE                 fire 2
 
 The ray aims in 10-degree steps from straight ahead to straight up and
 behind (hold UP/DOWN to sweep it). Shots fly from the aim tick on the rim;

@@ -69,9 +69,9 @@ Design: `linner_game_story.md`, plan: `milestones.md`.
   so consecutive columns never jump more than one row; the tool checks it.
 
 ## Game rules so far
-- Controls: LEFT/RIGHT shift gear (1..4, gear 5 locked), COPY or joystick
+- Controls: LEFT/RIGHT shift gear (1..4, gear 5 locked), SPACE or joystick
   fire 2 jumps (hold for a full jump), UP/DOWN aim (19 steps of 10 degrees,
-  0 = straight ahead, 9 = up, 18 = behind; repeats when held), SPACE /
+  0 = straight ahead, 9 = up, 18 = behind; repeats when held), Z /
   fire 1 shoots (hold: one shot every 8 frames, 3 in flight at most: a
   4th cost ~900 us a frame).
 - The ray keeps rolling with the distance (Phase 3); the aim is a short

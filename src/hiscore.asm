@@ -652,8 +652,8 @@ txt_title:       db "L  I  N  N  E  R",0
 txt_hiscores:    db "HIGH SCORES",0
 txt_press:       db "PRESS FIRE TO PLAY",0
 txt_help1:       db "LEFT RIGHT: GEAR    UP DOWN: AIM",0
-txt_help2:       db "SPACE OR FIRE 1: SHOOT",0
-txt_help3:       db "COPY OR FIRE 2: JUMP",0
+txt_help2:       db "Z OR FIRE 1: SHOOT",0
+txt_help3:       db "SPACE OR FIRE 2: JUMP",0
 txt_new_hi:      db "A NEW HIGH SCORE!",0
 txt_your_score:  db "SCORE 000000",0
 txt_enter:       db "ENTER YOUR NAME",0
