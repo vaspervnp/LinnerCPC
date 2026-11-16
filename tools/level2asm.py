@@ -8,6 +8,10 @@ Text format, one segment per line ('#' starts a comment):
 
   start ALT                 starting ground altitude
   LEN ALT TYPE              ground runs LEN pixels to altitude ALT
+  foe X rect                a Rectangle whose left edge starts X pixels into
+                            the level (it marches on the ground)
+  foe X tri ALT             a Triangle bobbing around altitude ALT (same
+                            scale as the ground, may go up to 240)
 
 ALT is the altitude of the ground line in pixels above its lowest position
 (0..126; screen row = 270 - ALT). TYPE is ground, water or gap. Slopes are
@@ -21,13 +25,18 @@ top speed the screen scrolls up to SCROLL_MAX pixels per frame, and a column
 changes when the ground under it differs from the ground SCROLL_MAX pixels
 further on. The tool replays the Z80's terrain generator exactly and checks
 that no screen-wide window (384 columns) has more than MAX_CHANGED changing
-columns: long gentle slopes (1/4 or less) and short steep ramps are fine,
-long steep hills are not. --no-budget skips the check (benchmarks).
+columns. A slope that climbs or drops DY rows over LEN pixels changes about
+min(LEN, SCROLL_MAX x DY) columns, so short steep ramps between flats are
+cheap and long slopes or big height changes on one screen are not.
+--no-budget skips the check (benchmarks).
 
 Output, 5 bytes per segment, terminated by a 0 length:
   db len, type          type: &00 ground, &80 water, &FF gap
   dw slope              signed 8.8 change of the height key per pixel
   db key_end            height key at the end (0 = highest, 126 = lowest)
+then LABEL_foes: (dw x, db type, db param) sorted by x, ended by dw &FFFF
+(type 1 Rectangle, 2 Triangle with param = top row of its bob centre), and
+LABEL_length = the level's length in pixels (it loops).
 """
 import sys
 
@@ -35,16 +44,21 @@ TYPES = {"ground": 0x00, "water": 0x80, "gap": 0xFF}
 MAX_ALT = 126
 SCREEN_W = 384
 SCROLL_MAX = 4          # pixels per frame at gear 5 (3.5 -> steps of 3 and 4)
-MAX_CHANGED = 150       # ~8K NOPs of ground work, leaves room for Phase 5 foes
+MAX_CHANGED = 120       # ~6.5K NOPs of changed columns; objects need the rest
 
 
 def key(alt):
     return MAX_ALT - alt
 
 
+FOES = {"rect": 1, "tri": 2}
+TRI_H = 13
+
+
 def parse(src):
     start = None
     segs = []
+    foes = []
     for n, line in enumerate(open(src), 1):
         line = line.split("#")[0].split()
         if not line:
@@ -52,6 +66,18 @@ def parse(src):
         where = f"{src}:{n}"
         if line[0] == "start":
             start = int(line[1])
+            continue
+        if line[0] == "foe":
+            x, kind = int(line[1]), line[2]
+            if kind not in FOES:
+                sys.exit(f"{where}: unknown foe {kind}")
+            param = 0
+            if kind == "tri":
+                alt = int(line[3])
+                if not 0 <= alt <= 240:
+                    sys.exit(f"{where}: altitude must be 0..240")
+                param = 254 - alt - TRI_H // 2
+            foes.append((x, FOES[kind], param, where))
             continue
         ln, alt, typ = int(line[0]), int(line[1]), line[2]
         if not 1 <= ln <= 255:
@@ -63,7 +89,7 @@ def parse(src):
         segs.append((ln, alt, typ, where))
     if start is None or not segs:
         sys.exit(f"{src}: needs a start line and at least one segment")
-    return start, segs
+    return start, segs, sorted(foes)
 
 
 def generate(start, segs):
@@ -113,7 +139,7 @@ def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     budget = "--no-budget" not in sys.argv
     src, label, out_path = args[:3]
-    start, segs = parse(src)
+    start, segs, foes = parse(src)
     keys, where, data = generate(start, segs)
     worst, at = check(keys, where)
     est = 7700 + worst * 54
@@ -130,6 +156,13 @@ def main():
         o.append(f"  db {ln},&{typ:02X}\n  dw {slope & 0xFFFF}\n  db {kend}")
     o.append("  db 0")
     o.append(f"; {len(data)} segments, {len(keys)} pixels")
+    o.append(f"{label}_length equ {len(keys)}")
+    o.append(f"{label}_foes:")
+    for x, typ, param, w in foes:
+        if not 0 <= x < len(keys):
+            sys.exit(f"{w}: foe outside the level (0..{len(keys) - 1})")
+        o.append(f"  dw {x}\n  db {typ},{param}")
+    o.append("  dw &FFFF")
     with open(out_path, "w") as f:
         f.write("\n".join(o) + "\n")
 

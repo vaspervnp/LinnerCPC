@@ -8,12 +8,15 @@
 ;   &7000-&73FF   terrain key ring (mirrored)
 ;   &7400-&757F   384 gap keys (the "old" ground of the first frame)
 ;   &7580-&75DF   scratch row: gap columns "draw" here
-;   &7580-&7FFF   stack (grows down from &8000)
+;   &7600-&76AF   object slots: 4 foes, 4 shots
+;   &7800-&7BFF   terrain run lengths (mirrored like the key ring)
+;   &7C00-&7FFF   stack
 ;   &8000-&FFFF   the screen: Mode 1 overscan 384x272, single buffer
 ;
-; Frame order: wait for VSYNC, then draw Linner (the beam is still in the
-; top border, ~2 ms before the first visible row), update the ground in
-; place, and only then read input and run the game logic for next frame.
+; Frame order: wait for VSYNC, then redraw Linner and the objects (the
+; beam is still in the top border, ~2 ms before the first visible row),
+; update the ground in place, and only then read input and run the game
+; logic for the next frame. Everything on screen is XOR.
 ;
 ; Build switches (rasm -D): DEBUG=1 shows frame time as border colours,
 ; TEST_FRAMES=n runs a scripted demo for n frames and stops at &0000.
@@ -56,6 +59,7 @@ start:
   call video_init               ; overscan, black palette, screen cleared
   call terrain_init
   call hero_init
+  call objects_init
   call hud_draw
   call render                   ; first full draw while the palette is black
   ei
@@ -75,6 +79,7 @@ main_loop:
   call pad_read
   endif
   call hero_update
+  call objects_update
   call hud_update
   BORDER HW_BLACK
   jp main_loop
@@ -84,34 +89,19 @@ level_restart:
   call palette_black
   ld a,1
   ld (hero_hidden),a
-  call hero_erase
-  call hero_draw
+  call linner_erase
+  call linner_draw
+  call objects_wipe
   call ground_wipe
   call terrain_init
   call hero_init
+  call objects_init
   call hud_draw
   call render
   call wait_frame
   xor a
   ld (frame_drops),a            ; the restart itself is allowed to take long
   jp palette_set
-
-; Bring the screen up to date with the game state (ground and Linner).
-render:
-  call ground_begin
-  call hero_erase
-  ld e,HERO_XB0                 ; the ground under Linner first...
-  ld b,HERO_XB1-HERO_XB0
-  call ground_cols
-  call hero_draw                ; ...then Linner, before the beam gets there
-  BORDER HW_BRIGHT_YELLOW
-  ld e,0                        ; the rest of the ground
-  ld b,HERO_XB0
-  call ground_cols
-  ld e,HERO_XB1
-  ld b,BYTES_PER_LINE-HERO_XB1
-  call ground_cols
-  jp ground_end
 
   if TEST_FRAMES
 ; Scripted input for headless runs: gear shifts at fixed loops, and an
@@ -161,12 +151,34 @@ test_input:
   ld a,(hl)
   if TEST_SOAK
   inc a                         ; TEST_SOAK: only jump gaps, roll into water
-  jr nz,.set
+  jr z,.jump
   else
   cp KEY_WATER
-  jr c,.set                     ; ground ahead
+  jr nc,.jump                   ; gap or water ahead
   endif
-  jr .jump
+  ld ix,OBJECTS                 ; a Rectangle close ahead: jump it
+  ld b,MAX_FOES
+.foe:
+  ld a,(ix+O_TYPE)
+  cp T_RECT
+  jr nz,.nofoe
+  bit F_VIS,(ix+O_FLAGS)
+  jr z,.nofoe
+  ld l,(ix+O_NSX)
+  ld h,(ix+O_NSX+1)
+  ld de,-(HERO_X+LINNER_R)
+  add hl,de
+  ld a,h
+  or a
+  jr nz,.nofoe
+  ld a,l
+  cp 24
+  jr c,.jump
+.nofoe:
+  ld de,OBJ_SIZE
+  add ix,de
+  djnz .foe
+  jr .set
 .air:
   ld a,(pad)                    ; keep holding jump in the air
   and 1<<PAD_JUMP
@@ -176,6 +188,9 @@ test_input:
   or 1<<PAD_JUMP
   ld c,a
 .set:
+  ld a,c                        ; keep firing
+  or 1<<PAD_FIRE
+  ld c,a
   ld a,(pad)
   cpl
   and c
@@ -191,6 +206,7 @@ TEST_LOOKAHEAD equ LINNER_R+4
   include "gfx.asm"
   include "terrain.asm"
   include "hero.asm"
+  include "objects.asm"
   include "hud.asm"
   include "tables.asm"
   include "level1.asm"
@@ -218,6 +234,8 @@ gen_len:        db 0
 gen_type:       db 0
 gen_end:        db 0
 gen_ptr:        dw 0
+gen_prev:       db 0
+gen_run:        db 0
 drawn_wx:       dw 0
 drawn_valid:    db 0
 g_active:       db 0
@@ -243,6 +261,20 @@ hero_drawn_ang: db 0
 hero_redraw:    db 0
 hud_gear:       db 0
 hud_soggy:      db 0
+hero_aim:       db 0
+aim_repeat:     db 0
+shot_cool:      db 0
+marker_drawn:   db 0
+marker_dcy:     db 0
+marker_daim:    db 0
+mk_x1:          dw 0
+mk_y0:          db 0
+mk_y1:          db 0
+score:          dw 0
+spawn_ptr:      dw 0
+spawn_base:     dw 0
+gu_min:         db 0
+
 vars_end:
 
 code_end:

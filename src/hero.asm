@@ -26,7 +26,7 @@ JUMP_CUT    equ &FE00           ; -2.0: rise speed left when jump is released
 VY_MAX      equ &0600
 DROP_MAX    equ 5               ; ground falling away faster than this: airborne
 LAND_TOL    equ 4               ; may land up to this far below the surface
-HERO_TOP    equ LINNER_R+1      ; highest centre (circle top at game y 1)
+HERO_TOP    equ 18              ; highest centre (aim marker stays on screen)
 HERO_LOST   equ 255-LINNER_R    ; centre at/below this: off the bottom
 NO_GROUND   equ 255
 
@@ -57,7 +57,14 @@ hero_init:
   ld hl,0
   ld (hero_angle),hl
   ld (hero_vy),hl
+  ld a,AIM_START
+  if TEST_FRAMES
+  ld a,0                        ; the test autopilot shoots straight ahead
+  endif
+  ld (hero_aim),a
   xor a
+  ld (aim_repeat),a
+  ld (marker_drawn),a
   ld (hero_drawn),a
   ld (hero_hidden),a
   ld (hero_state),a
@@ -101,6 +108,7 @@ hero_controls:
   dec a
   ld (gear),a
 .no_down:
+  call hero_aiming
   ld a,(hero_grounded)
   or a
   jr z,.air
@@ -123,6 +131,50 @@ hero_controls:
   ret z
   ld hl,JUMP_CUT
   ld (hero_vy),hl
+  ret
+
+; UP / DOWN turn the aim through 0..180 degrees in 10 degree steps (UP
+; towards straight up and over to behind), repeating while held. FIRE shoots.
+AIM_START   equ 2               ; 20 degrees up from straight ahead
+AIM_DELAY   equ 12              ; frames before a held key repeats
+AIM_RATE    equ 4
+hero_aiming:
+  ld hl,shot_cool
+  ld a,(hl)
+  or a
+  jr z,.cool
+  dec (hl)
+.cool:
+  ld a,(pad)
+  bit PAD_FIRE,a
+  call nz,fire_shot
+  ld a,(pad)
+  and 1<<PAD_UP or 1<<PAD_DOWN
+  ret z
+  ld b,a
+  ld a,(pad_new)
+  and b
+  ld a,AIM_DELAY
+  jr nz,.turn                   ; just pressed
+  ld hl,aim_repeat
+  dec (hl)
+  ret nz
+  ld a,AIM_RATE
+.turn:
+  ld (aim_repeat),a
+  ld hl,hero_aim
+  bit PAD_UP,b
+  jr z,.down
+  ld a,(hl)
+  cp AIM_STEPS-1
+  ret nc
+  inc (hl)
+  ret
+.down:
+  ld a,(hl)
+  or a
+  ret z
+  dec (hl)
   ret
 
 ; Speed eases towards the gear's target; on water it drains away instead.
@@ -377,25 +429,7 @@ hero_contact:
   ld de,HERO_X-LINNER_R
   add hl,de
   call ring_addr
-  ld de,contact_prof
-  ld b,2*LINNER_R+1
-  ld c,255
-.lp:
-  ld a,(hl)
-  cp KEY_GAP
-  jr z,.skip
-  and &7F
-  add a,GROUND_TOP
-  ex de,hl
-  sub (hl)
-  ex de,hl
-  cp c
-  jr nc,.skip
-  ld c,a
-.skip:
-  inc hl
-  inc de
-  djnz .lp
+  call contact_scan             ; C = min(ground y - profile)
   ld a,c
   cp NO_GROUND
   ret z
@@ -499,3 +533,89 @@ hero_circle:
   ld de,(circle_xor_tab+((HERO_X-LINNER_R) and 3)*2)
   push de
   ret                           ; jump to the sprite for this pixel phase
+
+; ---------------------------------------------------------------------------
+; Linner as a render item: the circle and ray (hero_erase / hero_draw) plus
+; the aim marker, a short tick just outside the rim.
+; ---------------------------------------------------------------------------
+linner_erase:
+  call hero_erase
+  ld a,(marker_drawn)
+  or a
+  ret z
+  ld a,(hero_hidden)
+  or a
+  jr nz,.off
+  ld a,(marker_dcy)
+  ld hl,hero_cy
+  cp (hl)
+  jr nz,.off
+  ld a,(marker_daim)
+  ld hl,hero_aim
+  cp (hl)
+  ret z
+.off:
+  xor a
+  ld (marker_drawn),a
+  ld a,(marker_daim)
+  ld c,a
+  ld a,(marker_dcy)
+  jr marker_xor
+
+linner_draw:
+  call hero_draw
+  ld a,(marker_drawn)
+  or a
+  ret nz
+  ld a,(hero_hidden)
+  or a
+  ret nz
+  inc a
+  ld (marker_drawn),a
+  ld a,(hero_aim)
+  ld (marker_daim),a
+  ld c,a
+  ld a,(hero_cy)
+  ld (marker_dcy),a
+  ; fall through
+
+; A = centre y, C = aim step: XOR the marker.
+marker_xor:
+  ld b,a
+  ld e,c
+  ld d,0
+  ld hl,aim_y1
+  add hl,de
+  ld a,(hl)
+  add a,b
+  ld (mk_y1),a
+  ld hl,aim_y0
+  add hl,de
+  ld a,(hl)
+  add a,b
+  ld (mk_y0),a
+  ld hl,aim_x1
+  add hl,de
+  ld a,(hl)
+  call .xpos
+  ld (mk_x1),hl
+  ld hl,aim_x0
+  add hl,de
+  ld a,(hl)
+  call .xpos                    ; HL = x0
+  ld de,(mk_x1)
+  ld a,(mk_y0)
+  ld b,a
+  ld a,(mk_y1)
+  ld c,a
+  jp line_xor
+.xpos:                          ; A = signed offset -> HL = HERO_X + A
+  push de
+  ld e,a
+  rla
+  sbc a,a
+  ld d,a
+  ld hl,HERO_X
+  add hl,de
+  pop de
+  ret

@@ -3,19 +3,21 @@
 # 110 at gear 4, 140 at gear 5.
 # LEN ALT TYPE: the line runs LEN pixels to altitude ALT (0..126).
 #
-# Slope budget (checked by tools/level2asm.py): at top speed every column on
-# a slope of 1/4 or more changes each frame. Keep long stretches flat or at
-# 1/8 or gentler; steep ramps (up to 45 degrees) only in short bursts.
+# Slope budget (checked by tools/level2asm.py): at top speed a slope that
+# climbs or drops DY rows changes about min(length, 4 x DY) columns every
+# frame, and a screen may hold 120 of them. So short ramps (up to 45
+# degrees) between flats are cheap; long gentle slopes and lots of height
+# change on one screen are not.
 start 30
 
 # --- the Bureau's flat, boring Line ----------------------------------------
 200 30  ground
 120 30  ground
 
-# --- Linner starts to warp it: long gentle swells --------------------------
-160 50  ground      # 1/8 up
-120 50  ground
-160 30  ground      # 1/8 down
+# --- Linner starts to warp it: swells ---------------------------------------
+40  50  ground      # 1/2 up
+160 50  ground
+40  30  ground      # 1/2 down
 60  30  ground
 32  30  gap         # the Bureau's first sabotage: an easy hop
 80  30  ground
@@ -23,16 +25,17 @@ start 30
 # --- a short steep ramp onto a plateau --------------------------------------
 24  48  ground      # 3/4 kicker
 140 48  ground
-120 63  ground      # 1/8 up
-100 63  ground
+30  63  ground      # 1/2 up
+190 63  ground
 
 # --- down into a valley with a water line -----------------------------------
 16  52  ground      # short drop
-200 32  ground      # 1/10 down
+40  32  ground      # 1/2 down
+176 32  ground
 96  32  water       # circles can't swim
 40  32  ground
-120 47  ground      # 1/8 up
-120 47  ground
+30  47  ground      # 1/2 up
+210 47  ground
 
 # --- rolling bumps: short ramps, long flats ---------------------------------
 12  56  ground
@@ -46,11 +49,26 @@ start 30
 12  47  ground
 120 47  ground
 
-# --- the long descent home --------------------------------------------------
-200 22  ground      # 1/8 down
+# --- the long way home ------------------------------------------------------
+50  22  ground      # 1/2 down
+150 22  ground
 60  22  water
 40  22  ground
 80  22  gap         # the chasm: gear 3 or faster
 60  22  ground
-64  30  ground      # 1/8 up to the start altitude
-140 30  ground
+16  30  ground      # back up to the start altitude
+188 30  ground
+
+# --- the Bureau of Sharp Angles ---------------------------------------------
+# foe X rect: a Rectangle starting X px into the level, marching on the Line
+# foe X tri ALT: a Triangle bobbing around altitude ALT (ground scale)
+foe 260  rect
+foe 520  tri 110
+foe 760  rect
+foe 1000 tri 120
+foe 1100 rect
+foe 1500 tri 115
+foe 1800 rect
+foe 2050 tri 125
+foe 2300 rect
+foe 2700 tri 105

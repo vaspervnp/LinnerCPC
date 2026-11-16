@@ -53,17 +53,21 @@
   endif
   mend
 
-; One ground column (pixel mask = mask): if its key changed, clear the old
-; pixel and set the new one. Main set: DE -> old key, HL -> new key (both
-; advanced). Alternate set: B' = ground_lo page, DE' = byte column.
-; Gap keys index a scratch row, so they need no test. ~11 NOPs unchanged,
-; ~55 changed.
-  macro GROUND_PX mask
+; One ground column (pixel phase = phase): if its key changed, XOR the old
+; pixel off and the new one on. XOR keeps the ground independent of the
+; objects drawn over it (they are XORed too), whatever the order.
+; Main set: DE -> old key, HL -> new key (both moved one column left).
+; Alternate set:
+; B' = ground_lo page, DE' = byte column. A gap key indexes a scratch row
+; with pen bits 0, so it needs no test. ~11 NOPs unchanged, ~50 changed.
+  macro GROUND_PX pentab
   ld a,(de)
   cp (hl)
   jr z,@next
   exx
-  ld l,a                        ; old key -> address of its pixel
+  ld l,a                        ; old key
+  ld h,{pentab}>>8
+  ld c,(hl)                     ; its pen bits
   ld h,b
   ld a,(hl)
   inc h
@@ -71,38 +75,25 @@
   ld l,a
   add hl,de
   ld a,(hl)
-  and {mask} xor &FF
+  xor c
   ld (hl),a
   exx
   ld a,(hl)                     ; new key
   exx
   ld l,a
+  ld h,{pentab}>>8
+  ld c,(hl)
   ld h,b
-  cp KEY_WATER
-  jr c,@ground
-  ld a,(hl)                     ; water (or gap): pen 2
-  inc h
-  ld h,(hl)
-  ld l,a
-  add hl,de
-  ld a,(hl)
-  and {mask} xor &FF
-  or {mask} and &0F
-  ld (hl),a
-  exx
-  jr @next
-@ground:                        ; ground: pen 1
   ld a,(hl)
   inc h
   ld h,(hl)
   ld l,a
   add hl,de
   ld a,(hl)
-  and {mask} xor &FF
-  or {mask} and &F0
+  xor c
   ld (hl),a
   exx
 @next:
-  inc hl
-  inc de
+  dec hl
+  dec de
   mend

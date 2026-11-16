@@ -9,11 +9,14 @@
 ; twice (at i and i+512) so the 384 visible columns can be read in one run.
 ; The ring still holds the keys of the last drawn frame (drawn_wx), so each
 ; frame compares old and new keys column by column and only touches the
-; columns that changed (old pixel cleared, new pixel set). No pixel is ever
-; erased and redrawn, so the ground cannot flicker.
+; columns that changed (old pixel XORed off, new pixel XORed on). No pixel
+; is ever erased and redrawn, so the ground cannot flicker; and since
+; everything on screen is XOR, objects and ground never disturb each other.
 ; ===========================================================================
 
 RING      equ &7000             ; 1024 bytes: keys, mirrored
+RUNS      equ &7800             ; 1024 bytes, same layout: for each column,
+RUNS_OFS  equ (RUNS-RING)>>8    ; how many columns before it share its key
 GAPS      equ &7400             ; 384 x KEY_GAP: "old keys" for the first draw
 
 ; Start the level: generator at the first segment, screen ground empty.
@@ -28,6 +31,8 @@ terrain_init:
   ld (scroll_wx),hl
   ld (gen_wx),hl
   ld (drawn_wx),hl
+  ld a,&FE                      ; no column before the first
+  ld (gen_prev),a
   call seg_load
   ld hl,GAPS                    ; nothing drawn yet
   ld de,GAPS+1
@@ -38,10 +43,12 @@ terrain_init:
   ld (drawn_valid),a
   jp terrain_fill
 
-; Generate columns until the ring holds everything up to scroll_wx + 384.
+; Generate columns until the ring holds everything up to scroll_wx + 384
+; and a little beyond (foes arriving at the right edge look ahead).
+FILL_AHEAD equ 40
 terrain_fill:
   ld hl,(scroll_wx)
-  ld de,SCREEN_W
+  ld de,SCREEN_W+FILL_AHEAD
   add hl,de
   ex de,hl                      ; DE = end
 .lp:
@@ -99,6 +106,26 @@ gen_column:
   inc h
   inc h                         ; +512: the mirror
   ld (hl),c
+  ld a,(gen_prev)               ; run length: same key as the column before?
+  cp c
+  ld a,c
+  ld (gen_prev),a
+  ld a,0
+  jr nz,.run
+  ld a,(gen_run)
+  inc a
+  jr nz,.run
+  dec a                         ; (saturates at 255)
+.run:
+  ld (gen_run),a
+  ld e,a
+  ld a,h
+  add a,RUNS_OFS
+  ld h,a
+  ld (hl),e                     ; mirror
+  dec h
+  dec h
+  ld (hl),e
   ld hl,(gen_wx)
   inc hl
   ld (gen_wx),hl
@@ -125,9 +152,9 @@ ring_addr:
   ret
 
 ; ---------------------------------------------------------------------------
-; Ground rendering, in three steps so Linner can be redrawn in between:
+; Ground rendering:
 ;   ground_begin                     work out what changed since drawn_wx
-;   ground_cols E=first byte column, B=count   (any number of calls)
+;   ground_cols E=first byte column, B=count
 ;   ground_end                       the screen now shows scroll_wx
 ; ---------------------------------------------------------------------------
 ground_begin:
@@ -140,10 +167,19 @@ ground_begin:
   sbc hl,de
   ld a,0
   jr z,.set                     ; no scroll: nothing to do
+  ld a,h                        ; HL = -(scroll step)
+  inc a
+  jr nz,.noskip                 ; a huge step (never in play)
+  ld a,l
+  neg
+  add a,3                       ; a 4-column group is unchanged when its
+  jr c,.noskip                  ; right column's run reaches back step+3
+  call ground_skip_on
   ld hl,(drawn_wx)
   call ring_addr
   jr .old
 .first:
+  call ground_skip_off
   ld hl,GAPS
 .old:
   ld (g_old),hl
@@ -154,9 +190,27 @@ ground_begin:
 .set:
   ld (g_active),a
   ret
+.noskip:
+  call ground_skip_off
+  ld hl,(drawn_wx)
+  call ring_addr
+  jr .old
+
+; A = threshold: groups whose run length >= A may be skipped.
+ground_skip_on:
+  ld (ground_cols.thresh+1),a
+  ld (ground_cols.thresh2+1),a
+  ld a,&38                      ; jr c: test the run length
+  ld (ground_cols.skipjr),a
+  ret
+ground_skip_off:
+  ld a,&18                      ; jr: always process
+  ld (ground_cols.skipjr),a
+  ret
 
 ; Erase the whole Line from the screen (before a restart).
 ground_wipe:
+  call ground_skip_off
   ld hl,(drawn_wx)
   call ring_addr
   ld (g_old),hl
@@ -175,20 +229,30 @@ ground_end:
   ld (drawn_valid),a
   ret
 
+; E = first byte column, B = count (> 0). Works from the right: at each
+; group of 4 columns, if the run under its right column shows the ground
+; there has had the same height for step+3 columns, the whole group is
+; unchanged, and so are the groups further left that the run covers: skip
+; them all at once. Flat stretches cost almost nothing.
 ground_cols:
   ld a,(g_active)
   or a
   ret z
-  ld a,e                        ; DE' = byte column, B' = ground row table page
-  exx
+  ld a,e
+  add a,b
+  dec a                         ; last byte column
+  exx                           ; DE' = byte column, B' = ground row page
   ld e,a
   ld d,0
   ld b,ground_lo>>8
   exx
-  ld l,e                        ; HL = DE = 4 * first byte column
+  ld l,a                        ; HL = DE = 4 * last byte column + 3
   ld h,0
   add hl,hl
   add hl,hl
+  inc hl
+  inc hl
+  inc hl
   ld e,l
   ld d,h
   push hl
@@ -201,12 +265,60 @@ ground_cols:
   add hl,de                     ; HL -> new keys
   pop de
 .lp:
-  GROUND_PX &88
-  GROUND_PX &44
-  GROUND_PX &22
-  GROUND_PX &11
+  ld a,h                        ; run length under the group's right column
+  add a,RUNS_OFS
+  ld h,a
+  ld c,(hl)
+  sub RUNS_OFS
+  ld h,a
+  ld a,c
+.thresh:
+  cp 0                          ; (threshold, set by ground_begin)
+.skipjr:
+  jr c,.process                 ; (jr c, or jr when skipping is off)
+.thresh2:
+  sub 0
+  srl a
+  srl a
+  inc a                         ; groups to skip
+  cp b
+  jr c,.fewer
+  ret                           ; the rest of the range is unchanged
+.fewer:
+  ld c,a
+  ld a,b
+  sub c
+  ld b,a
   exx
-  inc e
+  ld a,e
+  exx
+  sub c
+  exx
+  ld e,a
+  exx
+  ld a,c                        ; 4 x groups (at most 64 x 4 = 256: 16-bit)
+  push bc
+  ld c,a
+  ld b,0
+  sla c
+  rl b
+  sla c
+  rl b
+  or a
+  sbc hl,bc
+  ex de,hl
+  or a
+  sbc hl,bc
+  ex de,hl
+  pop bc
+  jr .lp
+.process:
+  GROUND_PX ground_pen3
+  GROUND_PX ground_pen2
+  GROUND_PX ground_pen1
+  GROUND_PX ground_pen0
+  exx
+  dec e
   exx
   dec b
   jp nz,.lp

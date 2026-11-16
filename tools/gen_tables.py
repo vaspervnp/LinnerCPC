@@ -17,6 +17,7 @@ import sys
 
 R = 10              # Linner's radius in pixels
 RAY = R - 2         # length of the internal ray
+SHOT_SPEED = 5      # pixels per frame
 HUD_ROWS = 16
 SCREEN_ROWS = 272
 GROUND_TOP = 128        # game y of height key 0
@@ -60,31 +61,64 @@ def emit_move(out, frm, to):
         out.append("  add hl,bc")
 
 
-def circle_code(shift, pts):
-    """Compiled XOR sprite of the circle outline for one pixel phase.
+def sprite_code(name, shift, pts, height):
+    """Compiled XOR sprite for one pixel phase.
 
-    Entry: HL = screen address of the bounding box's top-left byte, where the
-    box's left edge is at pixel x = cx - R and (cx - R) & 3 == shift.
-    Calling it twice restores the screen (XOR).
+    pts are (x, y) pixels relative to the bounding box's top-left corner.
+    Entry: HL = screen address of the box's top-left byte, where the box's
+    left edge x has x & 3 == shift. Calling it twice restores the screen.
+    Trashes A, BC, HL.
     """
     rows = {}
-    for dx, dy in pts:
-        px = dx + R + shift
-        rows.setdefault(dy + R, {}).setdefault(px >> 2, 0)
-        rows[dy + R][px >> 2] |= 0x88 >> (px & 3)
-    out = [f"circle_xor_{shift}:"]
+    for x, y in pts:
+        px = x + shift
+        rows.setdefault(y, {}).setdefault(px >> 2, 0)
+        rows[y][px >> 2] |= 0x88 >> (px & 3)
+    out = [f"{name}_{shift}:"]
     col = 0
-    for r in range(2 * R + 1):
+    for r in range(height):
         for c in sorted(rows.get(r, {})):
             emit_move(out, col, c)
             col = c
             out.append("  ld a,(hl)")
             out.append(f"  xor &{rows[r][c]:02X}")
             out.append("  ld (hl),a")
-        if r != 2 * R:
+        if r != height - 1:
             out.append("  DOWN")
     out.append("  ret")
     return out
+
+
+def sprite(o, name, pts):
+    """All four phases plus NAME_W, NAME_H and the NAME_tab jump table."""
+    w = max(x for x, y in pts) + 1
+    h = max(y for x, y in pts) + 1
+    o.append(f"{name.upper()}_W equ {w}")
+    o.append(f"{name.upper()}_H equ {h}")
+    for sh in range(4):
+        o.extend(sprite_code(name, sh, pts, h))
+    o.append(f"{name}_tab:")
+    o.append("  dw " + ",".join(f"{name}_{sh}" for sh in range(4)))
+    o.append("")
+
+
+def line_pixels(x0, y0, x1, y1):
+    pts = set()
+    n = max(abs(x1 - x0), abs(y1 - y0))
+    for i in range(n + 1):
+        pts.add((round(x0 + (x1 - x0) * i / n), round(y0 + (y1 - y0) * i / n)))
+    return pts
+
+
+def rect_pixels(w, h):
+    return ({(x, 0) for x in range(w)} | {(x, h - 1) for x in range(w)}
+            | {(0, y) for y in range(h)} | {(w - 1, y) for y in range(h)})
+
+
+def tri_pixels(w, h):
+    apex = (w // 2, 0)
+    return (line_pixels(*apex, 0, h - 1) | line_pixels(*apex, w - 1, h - 1)
+            | line_pixels(0, h - 1, w - 1, h - 1))
 
 
 def main():
@@ -122,6 +156,15 @@ def main():
     for i in range(0, 256, 16):
         o.append("  db " + ",".join(f"&{a >> 8:02X}" for a in gl[i:i + 16]))
 
+    # XOR pen bits of a ground pixel by key, one page per pixel phase:
+    # ground = pen 1 (bitplane 0), water = pen 2 (bitplane 1), gap = nothing.
+    for ph in range(4):
+        m = 0x88 >> ph
+        o.append(f"ground_pen{ph}:")
+        pens = [0 if k & 127 == 127 else (m & (0x0F if k & 0x80 else 0xF0)) for k in range(256)]
+        for i in range(0, 256, 16):
+            o.append("  db " + ",".join(f"&{v:02X}" for v in pens[i:i + 16]))
+
     # Ray end point offsets: 256 angle units per turn, y grows downwards so
     # increasing angles turn clockwise on screen (the way Linner rolls).
     o.append("ray_dx:")
@@ -151,12 +194,52 @@ def main():
     o.append("contact_prof:")
     o.append("  db " + ",".join(str(p) for p in prof))
     o.append("")
+    # The same, compiled: HL -> ring key under the circle's left column.
+    # Returns C = min(ground_y - prof) over the 2R+1 columns, 255 if all
+    # gaps. Trashes A, HL.
+    o.append("contact_scan:")
+    o.append("  ld c,255")
+    for i, p in enumerate(prof):
+        o.append("  ld a,(hl)")
+        o.append("  cp &FF")
+        o.append(f"  jr z,@cs{i}")
+        o.append("  and &7F")
+        o.append(f"  add a,{128 - p}")
+        o.append("  cp c")
+        o.append(f"  jr nc,@cs{i}")
+        o.append("  ld c,a")
+        o.append(f"@cs{i}:")
+        if i != len(prof) - 1:
+            o.append("  inc hl")
+    o.append("  ret")
+    o.append("")
 
-    for s in range(4):
-        o.extend(circle_code(s, pts))
-        o.append("")
-    o.append("circle_xor_tab:")
-    o.append("  dw " + ",".join(f"circle_xor_{s}" for s in range(4)))
+    # Linner's circle: same compiled-XOR scheme, box origin at (cx-R, cy-R)
+    sprite(o, "circle", {(x + R, y + R) for x, y in pts})
+    o.append("circle_xor_tab equ circle_tab")
+    o.append("")
+
+    # The Bureau of Sharp Angles
+    sprite(o, "rect", rect_pixels(16, 12))     # by-the-book Rectangle
+    sprite(o, "tri", tri_pixels(15, 13))       # edgy Triangle
+    sprite(o, "shot", {(0, 0), (1, 0), (0, 1), (1, 1)})
+
+    # Aiming: 19 angles, 0..180 degrees in 10 degree steps, from straight
+    # ahead (0) through straight up (9) to straight behind (18).
+    angs = [math.radians(10 * k) for k in range(19)]
+    def tab(label, vals, word=False):
+        o.append(f"{label}:")
+        o.append(("  dw " if word else "  db ") + ",".join(str(v & (0xFFFF if word else 0xFF)) for v in vals))
+    tab("aim_x0", [round(13 * math.cos(t)) for t in angs])   # marker / muzzle
+    tab("aim_y0", [round(-13 * math.sin(t)) for t in angs])
+    tab("aim_x1", [round(17 * math.cos(t)) for t in angs])
+    tab("aim_y1", [round(-17 * math.sin(t)) for t in angs])
+    tab("shot_vx", [round(SHOT_SPEED * 256 * math.cos(t)) for t in angs], True)
+    tab("shot_vy", [round(-SHOT_SPEED * 256 * math.sin(t)) for t in angs], True)
+    o.append(f"AIM_STEPS equ {len(angs)}")
+
+    # Triangle bobbing: 64 steps of 12*sin
+    tab("bob_tab", [round(12 * math.sin(2 * math.pi * i / 64)) for i in range(64)])
 
     with open(out_path, "w") as f:
         f.write("\n".join(o) + "\n")
