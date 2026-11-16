@@ -22,6 +22,16 @@
 @ok:
   mend
 
+; DOWN for compiled sprites: the common case inline (9 bytes), the
+; charline wrap (one row in 8) in down_wrap. Trashes A.
+  macro DOWNS
+  ld a,h
+  add a,8
+  ld h,a
+  and &38
+  call z,down_wrap
+  mend
+
 ; HL = screen address -> same column, next row up. Trashes A.
   macro UP
   ld a,h

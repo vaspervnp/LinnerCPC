@@ -1,8 +1,8 @@
 ; ===========================================================================
-; Objects: the Bureau's enforcers (Rectangles, Triangles) and Linner's shots
+; Objects: the Bureau's enforcers (Rectangles, Triangles), Rhombus
+; powerups, spike traps, the finish post, and Linner's shots
 ;
-; Fixed slots at OBJECTS (all in one page, so a slot is named by the low
-; byte of its address): 0..3 foes, 4..7 shots. Positions are world
+; Fixed slots at OBJECTS: 0..5 "things" from the level, 6..9 shots. Positions are world
 ; coordinates (x 16.8, y 8.8 game rows); the screen x is x - scroll_wx.
 ; Everything is drawn as compiled XOR sprites.
 ;
@@ -10,8 +10,8 @@
 ; ground can be redrawn in any order without disturbing each other.
 ; ===========================================================================
 
-OBJECTS     equ &7600           ; 8 slots x 22 bytes
-MAX_FOES    equ 4
+OBJECTS     equ &7600           ; 10 slots x 22 bytes
+MAX_FOES    equ 6               ; things from the level (foes, items, traps)
 MAX_SHOTS   equ 4
 MAX_OBJ     equ MAX_FOES+MAX_SHOTS
 OBJ_SIZE    equ 22
@@ -35,9 +35,13 @@ O_W         equ 18              ; size and sprite jump table, from type_info
 O_H         equ 19
 O_SPR       equ 20
 
-T_RECT      equ 1
+T_RECT      equ 1               ; foes (shots destroy them)
 T_TRI       equ 2
 T_SHOT      equ 3
+T_FAST      equ 4               ; Rhombus: Max Speed
+T_PHASE     equ 5               ; Rhombus: Phase Out
+T_SPIKE     equ 6               ; trap on the Line
+T_GOAL      equ 7               ; the finish post
 
 F_DRAWN     equ 0               ; flag bits
 F_VIS       equ 1
@@ -46,8 +50,8 @@ F_DEAD      equ 2
 RECT_SPEED  equ &FF80           ; -0.5 px/frame: marching at Linner
 TRI_SPEED   equ &FF00           ; -1.0
 SHOT_INTERVAL   equ 8               ; frames between shots
-SCORE_RECT  equ 10              ; (x10 on the display, later)
-SCORE_TRI   equ 15
+SCORE_RECT  equ &10             ; points, BCD
+SCORE_TRI   equ &15
 
 ; type -> width, height, sprite jump table
 type_info:
@@ -57,6 +61,14 @@ type_info:
   dw tri_tab
   db SHOT_W, SHOT_H
   dw shot_tab
+  db RHOMB_SPEED_W, RHOMB_SPEED_H
+  dw rhomb_speed_tab
+  db RHOMB_PHASE_W, RHOMB_PHASE_H
+  dw rhomb_phase_tab
+  db SPIKE_W, SPIKE_H
+  dw spike_tab
+  db GOAL_W, GOAL_H
+  dw goal_tab
 
 objects_init:
   ld hl,OBJECTS
@@ -109,14 +121,20 @@ objects_update:
   jr z,.next
   bit F_DEAD,(ix+O_FLAGS)
   jr nz,.dead
-  cp T_RECT
-  call z,rect_update
+  add a,a                       ; dispatch on the type
+  ld e,a
+  ld d,0
+  ld hl,update_jump-2
+  add hl,de
+  ld e,(hl)
+  inc hl
+  ld d,(hl)
+  ld hl,.placed
+  push hl
+  ex de,hl
   ld a,(ix+O_TYPE)
-  cp T_TRI
-  call z,tri_update
-  ld a,(ix+O_TYPE)
-  cp T_SHOT
-  call z,shot_update
+  jp (hl)
+.placed:
   call obj_place
   jr .next
 .dead:
@@ -127,7 +145,11 @@ objects_update:
   pop bc
   djnz .lp
   call shots_vs_foes
-  jp foes_vs_hero
+  jp things_vs_hero
+
+update_jump:
+  dw rect_update, tri_update, shot_update
+  dw thing_update, thing_update, thing_update, thing_update
 
 ; x += vx (24-bit, vx sign-extended)
 obj_move_x:
@@ -275,6 +297,38 @@ tri_update:
   ld (ix+O_Y),0
   ret
 
+; Rhombuses hover, bobbing gently; spikes and the finish post sit on the
+; Line (settled once, on their first update).
+thing_update:
+  cp T_SPIKE
+  jr nc,.settle
+  inc (ix+O_TIMER)              ; Rhombus: +-3 rows
+  ld a,(ix+O_TIMER)
+  and 63
+  ld e,a
+  ld d,0
+  ld hl,bob_tab
+  add hl,de
+  ld a,(hl)
+  sra a
+  sra a
+  add a,(ix+O_BASE)
+  ld (ix+O_Y),a
+  ret
+.settle:
+  ld a,(ix+O_TIMER)
+  or a
+  ret nz
+  inc (ix+O_TIMER)
+  ld a,(ix+O_W)
+  dec a
+  ld b,a
+  ld c,4
+  call ground_under
+  sub (ix+O_H)
+  ld (ix+O_Y),a
+  ret
+
 ; A shot flies straight; the Line, the screen edges and foes stop it.
 shot_update:
   call obj_move_x
@@ -355,8 +409,7 @@ obj_place:
 
 ; ---------------------------------------------------------------------------
 ; Spawning: level1_foes is a list of (dw x, db type, db param) sorted by x,
-; ended by &FFFF. A foe appears when its x reaches the right screen edge;
-; the list repeats with the terrain loop.
+; ended by &FFFF. A thing appears when its x reaches the right screen edge.
 ; ---------------------------------------------------------------------------
 spawn_foes:
   ld hl,(spawn_ptr)
@@ -366,19 +419,7 @@ spawn_foes:
   ld a,d
   and e
   inc a
-  jr nz,.entry
-  ld hl,(spawn_ptr)             ; an empty list: nothing ever spawns
-  ld de,level1_foes
-  or a
-  sbc hl,de
-  ret z
-  ld hl,(spawn_base)            ; end of the list: next lap of the level
-  ld de,level1_length
-  add hl,de
-  ld (spawn_base),hl
-  ld hl,level1_foes
-  ld (spawn_ptr),hl
-  jr spawn_foes
+  ret z                         ; the end of the list
 .entry:
   ld hl,(spawn_base)
   add hl,de                     ; world x of the next foe
@@ -439,6 +480,9 @@ spawn_foes:
   cp T_RECT
   jr z,.speed
   ld hl,TRI_SPEED
+  cp T_TRI
+  jr z,.speed
+  ld hl,0                       ; items, traps and the post stay put
 .speed:
   ld (ix+O_VX),l
   ld (ix+O_VX+1),h
@@ -542,6 +586,9 @@ shots_vs_foes:
   push bc
   call obj_live
   jr z,.nextfoe
+  ld a,(ix+O_TYPE)
+  cp T_TRI+1
+  jr nc,.nextfoe                ; only foes can be shot
   ld iy,SHOTS
   ld b,MAX_SHOTS
 .shot:
@@ -572,15 +619,12 @@ shots_vs_foes:
   set F_DEAD,(ix+O_FLAGS)       ; hit!
   set F_DEAD,(iy+O_FLAGS)
   ld a,(ix+O_TYPE)
-  ld e,SCORE_RECT
   cp T_RECT
+  ld a,SCORE_RECT
   jr z,.score
-  ld e,SCORE_TRI
+  ld a,SCORE_TRI
 .score:
-  ld d,0
-  ld hl,(score)
-  add hl,de
-  ld (score),hl
+  call score_add
   jr .nextfoe
 .miss:
   ld de,OBJ_SIZE
@@ -593,10 +637,14 @@ shots_vs_foes:
   djnz .foe
   ret
 
-; Touching a foe costs Linner his life: boxes overlap, with the circle
+; Touching things: foes and spikes cost Linner his life (unless he is
+; phased out), Rhombuses give their power. Boxes overlap, with the circle
 ; approximated by a box a little smaller than itself.
 HIT_R equ LINNER_R-3
-foes_vs_hero:
+things_vs_hero:
+  ld a,(game_state)
+  cp GS_PLAY
+  ret nz
   ld a,(hero_state)
   or a
   ret nz
@@ -605,40 +653,59 @@ foes_vs_hero:
 .lp:
   push bc
   call obj_live
-  jr z,.next
+  jp z,.next
   bit F_VIS,(ix+O_FLAGS)
-  jr z,.next
+  jp z,.next
+  ld a,(ix+O_NSX+1)             ; quick rejects: far right, or entirely
+  or a                          ; left or right of Linner
+  jp nz,.next
+  ld a,(ix+O_NSX)
+  cp HERO_X+HIT_R
+  jp nc,.next
+  add a,(ix+O_W)
+  cp HERO_X-HIT_R+1
+  jp c,.next
+  ld a,(ix+O_TYPE)
+  cp T_GOAL
+  jp z,.next
   ld c,(ix+O_W)
   ld b,(ix+O_H)
-  ld l,(ix+O_NSX)               ; foe left - (Linner x + HIT_R) < 0 ?
+  ld l,(ix+O_NSX)               ; left - (Linner x + HIT_R) < 0 ?
   ld h,(ix+O_NSX+1)
   ld de,-(HERO_X+HIT_R)
   add hl,de
   bit 7,h
-  jr z,.next
-  ld e,c                        ; foe right - (Linner x - HIT_R) > 0 ?
+  jp z,.next
+  ld e,c                        ; right - (Linner x - HIT_R) > 0 ?
   ld d,0
   add hl,de
   ld de,2*HIT_R
   add hl,de
   bit 7,h
-  jr nz,.next
+  jp nz,.next
   ld a,h
   or l
-  jr z,.next
+  jp z,.next
   ld a,(hero_cy)                ; vertical overlap
   add a,HIT_R
   sub (ix+O_Y)
-  jr c,.next                    ; Linner's bottom above the foe's top
+  jp c,.next                    ; Linner's bottom above its top
   ld a,(ix+O_Y)
   add a,b
-  ld c,a                        ; foe bottom
+  ld c,a                        ; its bottom
   ld a,(hero_cy)
   sub HIT_R
-  jr c,.hit
+  jr c,.touch
   cp c
-  jr nc,.next                   ; Linner's top below the foe
-.hit:
+  jp nc,.next                   ; Linner's top below it
+.touch:
+  ld a,(ix+O_TYPE)
+  cp T_FAST
+  jr z,.fast
+  cp T_PHASE
+  jr z,.phase
+  call hero_phased              ; foe or spike: a ghost passes through
+  jr z,.next
   pop bc
   ld a,HERO_GONE
   ld b,LOST_TIME
@@ -646,11 +713,19 @@ foes_vs_hero:
   ld a,1
   ld (hero_hidden),a
   ret
+.fast:
+  set F_DEAD,(ix+O_FLAGS)
+  call powerup_fast
+  jr .next
+.phase:
+  set F_DEAD,(ix+O_FLAGS)
+  call powerup_phase
 .next:
   ld de,OBJ_SIZE
   add ix,de
   pop bc
-  djnz .lp
+  dec b
+  jp nz,.lp
   ret
 
 ; ---------------------------------------------------------------------------

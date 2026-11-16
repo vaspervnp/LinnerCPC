@@ -11,9 +11,11 @@ Design: `linner_game_story.md`, plan: `milestones.md`.
   then the game jumps to &0000 and `CAP32_WAITBREAK` takes `build/shot.png`).
 - `make sim`: the same demo in `tools/cpcsim.py` (Python Z80, `--slow 1.25`
   approximates CPC wait states) with per-loop timing and `build/sim.png`.
-- The test demo shifts up to gear 4 (loops 40/80/120), aims straight ahead
-  and keeps FIRE held; an autopilot jumps when a gap or water is 14 px ahead
-  or a Rectangle is within 24 px. `TESTDEFS=-DTEST_SOAK=1` rolls into
+- The test demo shifts up to gear 4 (loops 130/170/210, after READY), aims
+  straight ahead and keeps FIRE held; an autopilot jumps when a gap or water
+  is 14 px ahead or a Rectangle / spikes are within 24 px.
+  `-DTEST_GHOST=1` keeps Linner phased out (reaches the finish: level
+  complete, bonus, level 2). `TESTDEFS=-DTEST_SOAK=1` rolls into
   water instead, `-DTEST_SOAK=2` also stays in gear 1 (sinks, restarts);
   `-DTEST_GEAR5=1` unlocks gear 5. Pass `-B` when changing TESTDEFS or
   TEST_FRAMES (make doesn't track them).
@@ -35,9 +37,13 @@ Design: `linner_game_story.md`, plan: `milestones.md`.
 - Level design rule (the user chose a slope budget over frame drops):
   `tools/level2asm.py` replays the Z80 terrain generator and fails the build
   if any 384-px window has more than MAX_CHANGED (120) changing columns.
-- Level 1 (Phase 5): worst window 92 columns. 1600-loop demo with foes and
-  shots: render avg 7.9K, logic avg 3.8K, worst loop ~18.3K, none over.
-  bench (gear 5 unlocked): 8.1K..13.4K average per gear, 16.9K worst.
+- Level 1 (Phase 6): worst window 92 columns. 3000-loop demos: normal run
+  render avg 6.1K + logic 3.9K, no loop over except the level resets (which
+  happen with the palette black); ghost run (Max Speed, hills, 4 shots)
+  has one loop 46 us over. bench (gear 5, ghost): 9.2K..14.7K average per
+  gear, 18.9K worst.
+- The HUD does at most one job per frame (a digit, a gear box or the
+  soggy bar), so a score change never spikes a frame.
 - Terrain keys round to nearest (segments start at y + 0.5, slopes rounded)
   so consecutive columns never jump more than one row; the tool checks it.
 
@@ -49,12 +55,13 @@ Design: `linner_game_story.md`, plan: `milestones.md`.
 - The ray keeps rolling with the distance (Phase 3); the aim is a short
   tick just outside the rim. Shots start at the tick, fly at 5 px/frame
   plus Linner's speed, and stop at the Line, the screen edges or a foe.
-- Foes (objects.asm, spawned from `foe` lines in the level, 4 at a time):
+- Foes (objects.asm, spawned from `foe` lines in the level; 6 slots for
+  foes, items and traps, 4 for shots):
   Rectangles (16x12) march along the Line at 0.5 px/frame and turn back at
   gaps and water; Triangles (15x13) drift at 1 px/frame bobbing +-12 rows
   and stay above the Line. Linner can't shoot downwards: a Rectangle lower
-  than him has to be jumped. Touching a foe loses the life. score += 10 per
-  Rectangle, 15 per Triangle (not shown yet).
+  than him has to be jumped. Touching a foe loses the life. 10 points per
+  Rectangle, 15 per Triangle (score is 6 BCD digits).
 - Jump: vy -5 rows/frame, gravity 0.25, cut to -2 on release: 50 rows high,
   40 frames long (40 px at gear 1 ... 140 px at gear 5). Linner lands only
   coming from above (within LAND_TOL rows); once below a surface he keeps
@@ -63,8 +70,22 @@ Design: `linner_game_story.md`, plan: `milestones.md`.
 - Gaps: falling off the bottom loses the life. Water: speed drains to 0.5
   px/frame and the soggy meter (HUD bar) fills 1 per frame; at 80 he sinks.
   Crossing fast or jumping is "traversing correctly". Dry ground drains it.
-- Losing a life restarts level 1 (`level_restart`: XOR Linner away,
-  `ground_wipe`, re-init, full redraw with the palette black).
+- Game flow (game.asm): READY ("LEVEL n  GET READY", 90 frames frozen) ->
+  PLAY -> past the finish post: COMPLETE (Linner coasts, every second left
+  = 10 points, then the next level; there is only level 1's data so far) ->
+  ... Losing a life restarts the level (`level_setup`: palette black, XOR
+  everything away, ground_wipe, re-init, full redraw); 3 lives, then GAME
+  OVER and a new game. The timer (`time N` in the level, BCD) running out
+  loses a life too.
+- Powerups (Rhombus, `item X speed|phase ALT`): Max Speed unlocks gear 5
+  for 20 s (HUD box 5 turns green); Phase Out makes Linner a dotted ghost
+  for 10 s (flickering for the last 2): foes, spikes and water can't hurt
+  him; gaps still can. Both end with the life. +50 points each.
+- Traps: `trap X spikes` (19x8 on the Line). The finish post is added by
+  the tool at the end of the last segment; after it the Line runs on flat.
+- HUD: gear boxes, soggy bar, "SCORE 000000", "T 060", "@X3" (lives).
+  Text uses a 5x7 font (gen_tables.py) via print_hud (write) / print_xor
+  (messages over the play area, removed by printing again).
 
 ## Architecture decisions (from the user)
 - Mode 1 full overscan, 384x272, **single buffer** at &8000-&FFFF (32K via
@@ -85,8 +106,14 @@ Design: `linner_game_story.md`, plan: `milestones.md`.
 - Write `(a and b) == c`: `==` binds tighter than `and`.
 - Labels are case-insensitive: a variable `shot_cool` clashes with an equ
   `SHOT_COOL`. Local labels are reachable as `global.local` (used for SMC).
+- `print` and `fail` are directives, not usable as labels.
+- Compiled sprites use DOWNS (fast path inline, charline wrap in
+  `down_wrap`): the full DOWN inlined everywhere overflowed the code area.
 
 ## Emulators
 - Caprice32 is the snap; `tools/cpcemu` runs it headless (SDL dummy drivers).
   The snap can't read /tmp, keep images under the repo.
 - DISC.BAS must have CR LF line endings (the Makefile converts it).
+- Booting the .dsk headless: `tools/cpcemu -nowait -keys $'run"disc\n'zzz...`
+  needs ~1200 padding keys now that LINNER.BIN is ~22K (fewer and the
+  screenshot catches the black loading screen).

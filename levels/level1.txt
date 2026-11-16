@@ -1,4 +1,4 @@
-# Linner - level 1 terrain (loops back to the start until Phase 6 adds an end)
+# Linner - level 1
 # A full jump lasts 40 frames: 40 px at gear 1, 60 at gear 2, 80 at gear 3,
 # 110 at gear 4, 140 at gear 5.
 # LEN ALT TYPE: the line runs LEN pixels to altitude ALT (0..126).
@@ -9,6 +9,7 @@
 # degrees) between flats are cheap; long gentle slopes and lots of height
 # change on one screen are not.
 start 30
+time 60
 
 # --- the Bureau's flat, boring Line ----------------------------------------
 200 30  ground
@@ -72,3 +73,12 @@ foe 1800 rect
 foe 2050 tri 125
 foe 2300 rect
 foe 2700 tri 105
+
+# --- Rhombus powerups and traps ----------------------------------------------
+# item X speed|phase ALT: a Rhombus hovering around altitude ALT
+# trap X spikes: spikes on the Line (jump them, or pass through as a ghost)
+item 620  speed 75
+trap 980  spikes
+item 1450 phase 70
+trap 1880 spikes
+trap 2240 spikes

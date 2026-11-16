@@ -61,6 +61,61 @@ def emit_move(out, frm, to):
         out.append("  add hl,bc")
 
 
+# Classic 5x7 font, column-major, bit 0 = top row.
+FONT = {
+    " ": [0, 0, 0, 0, 0], "!": [0x00, 0x00, 0x5F, 0x00, 0x00],
+    "-": [0x08, 0x08, 0x08, 0x08, 0x08], ".": [0x00, 0x60, 0x60, 0x00, 0x00],
+    ":": [0x00, 0x36, 0x36, 0x00, 0x00],
+    "0": [0x3E, 0x51, 0x49, 0x45, 0x3E], "1": [0x00, 0x42, 0x7F, 0x40, 0x00],
+    "2": [0x42, 0x61, 0x51, 0x49, 0x46], "3": [0x21, 0x41, 0x45, 0x4B, 0x31],
+    "4": [0x18, 0x14, 0x12, 0x7F, 0x10], "5": [0x27, 0x45, 0x45, 0x45, 0x39],
+    "6": [0x3C, 0x4A, 0x49, 0x49, 0x30], "7": [0x01, 0x71, 0x09, 0x05, 0x03],
+    "8": [0x36, 0x49, 0x49, 0x49, 0x36], "9": [0x06, 0x49, 0x49, 0x29, 0x1E],
+    "A": [0x7E, 0x11, 0x11, 0x11, 0x7E], "B": [0x7F, 0x49, 0x49, 0x49, 0x36],
+    "C": [0x3E, 0x41, 0x41, 0x41, 0x22], "D": [0x7F, 0x41, 0x41, 0x22, 0x1C],
+    "E": [0x7F, 0x49, 0x49, 0x49, 0x41], "F": [0x7F, 0x09, 0x09, 0x09, 0x01],
+    "G": [0x3E, 0x41, 0x49, 0x49, 0x7A], "H": [0x7F, 0x08, 0x08, 0x08, 0x7F],
+    "I": [0x00, 0x41, 0x7F, 0x41, 0x00], "J": [0x20, 0x40, 0x41, 0x3F, 0x01],
+    "K": [0x7F, 0x08, 0x14, 0x22, 0x41], "L": [0x7F, 0x40, 0x40, 0x40, 0x40],
+    "M": [0x7F, 0x02, 0x0C, 0x02, 0x7F], "N": [0x7F, 0x04, 0x08, 0x10, 0x7F],
+    "O": [0x3E, 0x41, 0x41, 0x41, 0x3E], "P": [0x7F, 0x09, 0x09, 0x09, 0x06],
+    "Q": [0x3E, 0x41, 0x51, 0x21, 0x5E], "R": [0x7F, 0x09, 0x19, 0x29, 0x46],
+    "S": [0x46, 0x49, 0x49, 0x49, 0x31], "T": [0x01, 0x01, 0x7F, 0x01, 0x01],
+    "U": [0x3F, 0x40, 0x40, 0x40, 0x3F], "V": [0x1F, 0x20, 0x40, 0x20, 0x1F],
+    "W": [0x3F, 0x40, 0x38, 0x40, 0x3F], "X": [0x63, 0x14, 0x08, 0x14, 0x63],
+    "Y": [0x07, 0x08, 0x70, 0x08, 0x07], "Z": [0x61, 0x51, 0x49, 0x45, 0x43],
+    "@": [0x1C, 0x22, 0x41, 0x22, 0x1C],     # a little Linner (lives)
+}
+
+
+def font_tables(o):
+    """font: 8 row bytes per glyph for codes 32..90 (pixels in bits 6..2, so
+    each 8-pixel cell has a 1-pixel margin). nib_pen3: 4 pixels -> one Mode
+    1 byte in pen 3."""
+    o.append("FONT_FIRST equ 32")
+    o.append("font:")
+    for code in range(32, 91):
+        cols = FONT.get(chr(code), [0] * 5)
+        rows = []
+        for r in range(8):
+            b = 0
+            for c in range(5):
+                if (cols[c] >> r) & 1:
+                    b |= 0x40 >> c
+            rows.append(b)
+        o.append("  db " + ",".join(f"&{v:02X}" for v in rows) + f"   ; {chr(code)!r}")
+    o.append("  align 16")
+    o.append("nib_pen3:")
+    vals = []
+    for n in range(16):
+        b = 0
+        for i in range(4):
+            if n & (8 >> i):
+                b |= 0x88 >> i
+        vals.append(b)
+    o.append("  db " + ",".join(f"&{v:02X}" for v in vals))
+
+
 def sprite_code(name, shift, pts, height):
     """Compiled XOR sprite for one pixel phase.
 
@@ -84,7 +139,7 @@ def sprite_code(name, shift, pts, height):
             out.append(f"  xor &{rows[r][c]:02X}")
             out.append("  ld (hl),a")
         if r != height - 1:
-            out.append("  DOWN")
+            out.append("  DOWNS")
     out.append("  ret")
     return out
 
@@ -223,6 +278,24 @@ def main():
     sprite(o, "rect", rect_pixels(16, 12))     # by-the-book Rectangle
     sprite(o, "tri", tri_pixels(15, 13))       # edgy Triangle
     sprite(o, "shot", {(0, 0), (1, 0), (0, 1), (1, 1)})
+
+    # Linner phased out: every other pixel of the circle (a ghost)
+    sprite(o, "ghost", {(x + R, y + R) for x, y in pts if (x + y) & 1 == 0})
+    # Rhombus powerups: a diamond with a bar (Max Speed: across, Phase Out:
+    # up and down), the spike trap and the finish post
+    W2, H2 = 6, 8
+    diamond = (line_pixels(W2, 0, 0, H2) | line_pixels(0, H2, W2, 2 * H2)
+               | line_pixels(W2, 2 * H2, 2 * W2, H2) | line_pixels(2 * W2, H2, W2, 0))
+    sprite(o, "rhomb_speed", diamond | line_pixels(3, H2, 2 * W2 - 3, H2))
+    sprite(o, "rhomb_phase", diamond | line_pixels(W2, 3, W2, 2 * H2 - 3))
+    spikes = set()
+    for k in range(3):
+        spikes |= line_pixels(6 * k, 7, 6 * k + 3, 0) | line_pixels(6 * k + 3, 0, 6 * k + 6, 7)
+    sprite(o, "spike", spikes | line_pixels(0, 7, 18, 7))
+    post = line_pixels(0, 0, 0, 47) | line_pixels(1, 0, 1, 47)
+    flag = line_pixels(2, 0, 13, 5) | line_pixels(13, 5, 2, 10)
+    sprite(o, "goal", post | flag)
+    font_tables(o)
 
     # Aiming: 19 angles, 0..180 degrees in 10 degree steps, from straight
     # ahead (0) through straight up (9) to straight behind (18).

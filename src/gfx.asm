@@ -174,3 +174,18 @@ line_yu:
   UP
   djnz line_yu
   ret
+
+; The slow half of DOWNS: HL has just stepped past the charline's last
+; raster row. Trashes A.
+down_wrap:
+  ld a,l
+  add a,BYTES_PER_LINE
+  ld l,a
+  ld a,h
+  adc a,&C0
+  ld h,a
+  bit 3,h
+  ret z
+  add a,&38                     ; charline 20 -> 21: continue at &C000
+  ld h,a
+  ret

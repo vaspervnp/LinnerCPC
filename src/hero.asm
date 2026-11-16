@@ -57,6 +57,11 @@ hero_init:
   ld hl,0
   ld (hero_angle),hl
   ld (hero_vy),hl
+  ld hl,0                       ; powerups end with the life
+  ld (hero_fast),hl
+  ld (hero_phase),hl
+  ld hl,circle_tab
+  ld (hero_ctab),hl
   ld a,AIM_START
   if TEST_FRAMES
   ld a,0                        ; the test autopilot shoots straight ahead
@@ -370,9 +375,11 @@ hero_water:
   jr c,.dry                     ; ground
   inc a
   jr z,.dry                     ; gap
+  call hero_phased
+  ld hl,hero_soggy
+  jr z,.ghost
   ld a,1
   ld (hero_on_water),a
-  ld hl,hero_soggy
   inc (hl)
   ld a,(hl)
   cp SOGGY_MAX
@@ -380,6 +387,9 @@ hero_water:
   ld a,HERO_SINKING
   ld b,SINK_TIME
   jp hero_die
+.ghost:
+  ld (hl),0                     ; (A = 0): a ghost doesn't get wet
+  ret
 .dry:
   ld hl,hero_soggy
   ld a,(hl)
@@ -387,6 +397,18 @@ hero_water:
   ret z
   dec (hl)
   ret
+
+; Level complete: roll to a stop, still following the Line.
+hero_coast:
+  ld hl,(speed)
+  ld de,-DECEL
+  add hl,de
+  jr c,.slower                  ; (no borrow: still above zero)
+  ld hl,0
+.slower:
+  ld (speed),hl
+  call hero_scroll
+  jp hero_vertical
 
 ; A = new state, B = frames until the restart.
 hero_die:
@@ -420,7 +442,7 @@ hero_dying:
   ld hl,hero_timer
   dec (hl)
   ret nz
-  jp level_restart
+  jp game_life_lost
 
 ; A = the centre y at which Linner rests on the ground under him (every
 ; outline pixel just above it), or NO_GROUND over a gap.
@@ -453,6 +475,11 @@ hero_erase:
   ld hl,hero_cy
   cp (hl)
   jr nz,.all
+  ld hl,(hero_ctab)             ; solid <-> ghost
+  ld de,(hero_drawn_ctab)
+  or a
+  sbc hl,de
+  jr nz,.all
   ld a,(hero_angle+1)           ; same height: only the ray may have turned
   ld hl,hero_drawn_ang
   cp (hl)
@@ -466,6 +493,7 @@ hero_erase:
   ld a,2
   ld (hero_redraw),a
   ld a,(hero_drawn_cy)
+  ld hl,(hero_drawn_ctab)
   call hero_circle
 .ray:
   ld a,(hero_drawn_cy)
@@ -496,6 +524,8 @@ hero_draw:
   ld a,(hero_redraw)
   cp 2
   jr nz,.ray
+  ld hl,(hero_ctab)
+  ld (hero_drawn_ctab),hl
   ld a,(hero_cy)
   call hero_circle
 .ray:
@@ -524,15 +554,18 @@ hero_ray:
   ld hl,HERO_X                  ; HL = x0, B = y0
   jp line_xor
 
-; A = centre y. XOR the circle outline.
+; A = centre y, HL = sprite table (circle_tab or ghost_tab): XOR it.
 hero_circle:
+  ld de,((HERO_X-LINNER_R) and 3)*2
+  add hl,de                     ; the routine for this pixel phase
+  ld e,(hl)
+  inc hl
+  ld d,(hl)
+  push de
   sub LINNER_R
   ld e,a
   ld hl,HERO_X-LINNER_R
-  call pix_addr                 ; HL = top-left byte of the bounding box
-  ld de,(circle_xor_tab+((HERO_X-LINNER_R) and 3)*2)
-  push de
-  ret                           ; jump to the sprite for this pixel phase
+  jp pix_addr                   ; HL = top-left byte, then "ret" to it
 
 ; ---------------------------------------------------------------------------
 ; Linner as a render item: the circle and ray (hero_erase / hero_draw) plus

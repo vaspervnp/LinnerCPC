@@ -54,43 +54,59 @@ kbd_down:
   sbc a,a                       ; A = &FF if down
   ret
 
-; Build pad (held) and pad_new (pressed this frame) from cursor keys,
-; joystick 0, SPACE (fire) and COPY (jump).
-pad_table:
-  db KEY_UP,    JOY_UP,    1<<PAD_UP
-  db KEY_DOWN,  JOY_DOWN,  1<<PAD_DOWN
-  db KEY_LEFT,  JOY_LEFT,  1<<PAD_LEFT
-  db KEY_RIGHT, JOY_RIGHT, 1<<PAD_RIGHT
-  db KEY_SPACE, JOY_FIRE1, 1<<PAD_FIRE
-  db KEY_COPY,  JOY_FIRE2, 1<<PAD_JUMP
-PAD_ENTRIES equ ($-pad_table)/3
-
+; Build pad (held) and pad_new (pressed this frame) from the cursor keys,
+; SPACE (fire), COPY (jump) and joystick 0. The joystick's bits 0..3 (up,
+; down, left, right) are already the pad's; fire 1 shoots, fire 2 jumps.
 pad_read:
   call kbd_scan
-  ld ix,pad_table
-  ld d,0                        ; new pad bits
-  ld e,PAD_ENTRIES
-.entry:
-  ld a,(ix+0)
-  call kbd_down
-  jr nz,.on
-  ld a,(ix+1)
-  call kbd_down
-  jr z,.next
-.on:
-  ld a,d
-  or (ix+2)
-  ld d,a
-.next:
-  inc ix
-  inc ix
-  inc ix
-  dec e
-  jr nz,.entry
+  ld a,(keymap+9)               ; joystick (0 = pressed)
+  cpl
+  ld b,a
+  and &0F
+  ld c,a
+  bit 5,b                       ; fire 1
+  jr z,.f2
+  set PAD_FIRE,c
+.f2:
+  bit 4,b                       ; fire 2
+  jr z,.keys
+  set PAD_JUMP,c
+.keys:
+  ld a,(keymap+0)               ; cursor up / right / down
+  cpl
+  ld b,a
+  bit 0,b
+  jr z,.k1
+  set PAD_UP,c
+.k1:
+  bit 1,b
+  jr z,.k2
+  set PAD_RIGHT,c
+.k2:
+  bit 2,b
+  jr z,.k3
+  set PAD_DOWN,c
+.k3:
+  ld a,(keymap+1)               ; cursor left, COPY
+  cpl
+  ld b,a
+  bit 0,b
+  jr z,.k4
+  set PAD_LEFT,c
+.k4:
+  bit 1,b
+  jr z,.k5
+  set PAD_JUMP,c
+.k5:
+  ld a,(keymap+5)               ; SPACE
+  bit 7,a
+  jr nz,.done
+  set PAD_FIRE,c
+.done:
   ld a,(pad)
   cpl
-  and d
+  and c
   ld (pad_new),a
-  ld a,d
+  ld a,c
   ld (pad),a
   ret

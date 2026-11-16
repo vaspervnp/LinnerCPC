@@ -17,15 +17,17 @@ sys.path.insert(0, os.path.join(ROOT, "tools"))
 from cpcsim import CPC  # noqa: E402
 
 BUDGET = 19968
-WINDOWS = ((20, 40, 1), (60, 80, 2), (100, 120, 3), (140, 160, 4), (190, 595, 5))
+WINDOWS = ((105, 130, 1), (150, 170, 2), (190, 210, 3), (230, 250, 4), (280, 595, 5))
 
 
 def level_text(m):
+    """Zigzag terrain of slope m, long enough for the whole run (levels
+    don't loop: past the end the Line runs on flat)."""
     if m == 0:
-        return "start 40\n200 40 ground\n"
+        return "start 40\n" + "200 40 ground\n" * 20
     run = 40
     rise = round(run * m)
-    return f"start 30\n{run} {30 + rise} ground\n{run} 30 ground\n"
+    return f"start 30\n" + f"{run} {30 + rise} ground\n{run} 30 ground\n" * 40
 
 
 def bench(m):
@@ -36,7 +38,7 @@ def bench(m):
     subprocess.run(["python3", "tools/level2asm.py", f"{d}/level.txt", "level1", f"{d}/level1.asm", "--no-budget"],
                    cwd=ROOT, check=True, stdout=subprocess.DEVNULL)
     r = subprocess.run(["rasm", "-amper", "-v2", "-I.", "-I../../src", "-I..", "-DTEST_FRAMES=600",
-                        "-DDEBUG=1", "-DTEST_GEAR5=1", "../../src/main.asm", "-oi", "linner.sna"],
+                        "-DDEBUG=1", "-DTEST_GEAR5=1", "-DTEST_GHOST=1", "../../src/main.asm", "-oi", "linner.sna"],
                        cwd=d, capture_output=True, text=True)
     if "error" in r.stdout.lower() + r.stderr.lower():
         sys.exit(r.stdout + r.stderr)

@@ -61,14 +61,23 @@ terrain_fill:
   pop de
   jr .lp
 
-; Load the segment at gen_ptr (wrapping to the start at the end marker).
+; Load the segment at gen_ptr. Past the end marker the Line runs on flat
+; (the finish post stands at the end; the screen still needs ground).
 seg_load:
   ld hl,(gen_ptr)
   ld a,(hl)
   or a
   jr nz,.ok
-  ld hl,level1
-  ld a,(hl)
+  ld a,255                      ; runout: flat ground, the marker stays
+  ld (gen_len),a
+  xor a
+  ld (gen_type),a
+  ld h,a
+  ld l,a
+  ld (gen_slope),hl
+  ld a,(gen_y+1)
+  ld (gen_end),a
+  ret
 .ok:
   ld (gen_len),a
   inc hl

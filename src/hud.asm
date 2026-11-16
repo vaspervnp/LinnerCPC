@@ -12,11 +12,12 @@ HUD_H          equ 10               ; rows
 SOGGY_COL      equ 24               ; bar: byte columns 24..43
 SOGGY_BYTES    equ 20               ; SOGGY_MAX / 4
 
+; One HUD job per frame: a digit, else a gear box, else the soggy bar.
 hud_update:
-  ld a,(gear)
-  ld hl,hud_gear
-  cp (hl)
-  call nz,hud_gears
+  call hud_text_update
+  ret nz
+  call hud_gears
+  ret nz
   ld a,(hero_soggy)             ; the bar moves at most one byte per frame
   srl a
   srl a
@@ -52,9 +53,15 @@ hud_column:
   djnz .row
   ret
 
-; Full HUD: gear boxes, empty soggy bar with its end marks.
+; Full HUD: gear boxes, empty soggy bar with its end marks, the texts.
 hud_draw:
+  call hud_labels
+  ld b,GEARS                    ; (hud_box mirrors the screen: 0 at boot)
+.all:
+  push bc
   call hud_gears
+  pop bc
+  djnz .all
   ld a,SOGGY_COL-1
   ld c,&10                      ; pen 1, rightmost pixel: left end mark
   call hud_column
@@ -73,23 +80,34 @@ hud_draw:
   jr nz,.clear
   ret
 
+; Bring the gear boxes up to date: at most one box (3 x 10 bytes) per
+; frame, only where its look changed.
 hud_gears:
-  ld a,(gear)
-  ld (hud_gear),a
   ld b,1                        ; box number
+  ld hl,hud_box
 .box:
   ld a,(gear)
   cp b
-  ld a,&FF                      ; pen 3: lit
-  jr nc,.fill
+  ld c,&FF                      ; pen 3: lit
+  jr nc,.got
   ld a,(max_gear)
   cp b
-  ld a,&F0                      ; pen 1: available
-  jr nc,.fill
-  ld a,&0F                      ; pen 2: locked
-.fill:
-  ld c,a
-  push bc
+  ld c,&F0                      ; pen 1: available
+  jr nc,.got
+  ld c,&0F                      ; pen 2: locked
+.got:
+  ld a,(hl)
+  cp c
+  jr nz,.draw
+  inc hl
+  inc b
+  ld a,b
+  cp GEARS+1
+  jr nz,.box
+  xor a                         ; Z: nothing to do
+  ret
+.draw:
+  ld (hl),c
   ld a,b                        ; column = HUD_BOX_COL + (b-1)*(W+1)
   dec a
   add a,a
@@ -104,9 +122,5 @@ hud_gears:
   pop af
   inc a
   call hud_column
-  pop bc
-  inc b
-  ld a,b
-  cp GEARS+1
-  jr nz,.box
+  or 1                          ; NZ: drew a box
   ret

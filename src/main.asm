@@ -34,6 +34,9 @@ TEST_FRAMES equ 0
   ifndef TEST_GEAR5
 TEST_GEAR5 equ 0                ; tests: gear 5 unlocked from the start
   endif
+  ifndef TEST_GHOST
+TEST_GHOST equ 0                ; tests: Linner is phased out for good
+  endif
   ifndef TEST_SOAK
 TEST_SOAK equ 0                 ; tests: 1 = roll through water, 2 = also stay in gear 1
   endif
@@ -57,16 +60,9 @@ start:
   ld (hl),0
   ldir
   call video_init               ; overscan, black palette, screen cleared
-  call terrain_init
-  call hero_init
   call objects_init
-  call hud_draw
-  call render                   ; first full draw while the palette is black
   ei
-  call wait_frame
-  xor a
-  ld (frame_drops),a
-  call palette_set
+  call game_new                 ; level 1, "GET READY"
 
 main_loop:
   call wait_frame
@@ -78,30 +74,10 @@ main_loop:
   else
   call pad_read
   endif
-  call hero_update
-  call objects_update
+  call game_update
   call hud_update
   BORDER HW_BLACK
   jp main_loop
-
-; Linner was lost: wipe him and the Line, start the level again.
-level_restart:
-  call palette_black
-  ld a,1
-  ld (hero_hidden),a
-  call linner_erase
-  call linner_draw
-  call objects_wipe
-  call ground_wipe
-  call terrain_init
-  call hero_init
-  call objects_init
-  call hud_draw
-  call render
-  call wait_frame
-  xor a
-  ld (frame_drops),a            ; the restart itself is allowed to take long
-  jp palette_set
 
   if TEST_FRAMES
 ; Scripted input for headless runs: gear shifts at fixed loops, and an
@@ -109,7 +85,7 @@ level_restart:
 ; button for a full jump). After TEST_FRAMES loops we jump to &0000, where
 ; Caprice32's CAP32_WAITBREAK and tools/cpcsim.py stop.
 test_script:
-  db 40, 80, 120, 160, 0        ; loops that press RIGHT (gear up)
+  db 130, 170, 210, 250, 0      ; loops that press RIGHT (gear up; READY ends ~95)
 test_input:
   ld hl,(test_frame)
   inc hl
@@ -156,12 +132,15 @@ test_input:
   cp KEY_WATER
   jr nc,.jump                   ; gap or water ahead
   endif
-  ld ix,OBJECTS                 ; a Rectangle close ahead: jump it
+  ld ix,OBJECTS                 ; a Rectangle or spikes close ahead: jump
   ld b,MAX_FOES
 .foe:
   ld a,(ix+O_TYPE)
   cp T_RECT
+  jr z,.isfoe
+  cp T_SPIKE
   jr nz,.nofoe
+.isfoe:
   bit F_VIS,(ix+O_FLAGS)
   jr z,.nofoe
   ld l,(ix+O_NSX)
@@ -208,6 +187,8 @@ TEST_LOOKAHEAD equ LINNER_R+4
   include "hero.asm"
   include "objects.asm"
   include "hud.asm"
+  include "text.asm"
+  include "game.asm"
   include "tables.asm"
   include "level1.asm"
 
@@ -259,7 +240,6 @@ hero_drawn:     db 0
 hero_drawn_cy:  db 0
 hero_drawn_ang: db 0
 hero_redraw:    db 0
-hud_gear:       db 0
 hud_soggy:      db 0
 hero_aim:       db 0
 aim_repeat:     db 0
@@ -270,7 +250,22 @@ marker_daim:    db 0
 mk_x1:          dw 0
 mk_y0:          db 0
 mk_y1:          db 0
-score:          dw 0
+score:          db 0,0,0        ; BCD, most significant first
+lives:          db 0
+level_num:      db 0
+game_state:     db 0
+state_timer:    db 0
+time_left:      dw 0            ; BCD seconds
+time_tick:      db 0
+hero_fast:      dw 0            ; frames of Max Speed left
+hero_phase:     dw 0            ; frames of Phase Out left
+hero_ctab:      dw 0            ; circle_tab or ghost_tab
+hero_drawn_ctab: dw 0
+msg_cur:        dw 0
+hud_want:       defs 10
+hud_shown:      defs 10
+hud_char:       db 0,0
+hud_box:        defs 5          ; the look each gear box has on screen
 spawn_ptr:      dw 0
 spawn_base:     dw 0
 gu_min:         db 0

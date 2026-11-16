@@ -7,11 +7,18 @@ it fits the frame budget.
 Text format, one segment per line ('#' starts a comment):
 
   start ALT                 starting ground altitude
+  time SECONDS              the level's time limit (default 60)
   LEN ALT TYPE              ground runs LEN pixels to altitude ALT
   foe X rect                a Rectangle whose left edge starts X pixels into
                             the level (it marches on the ground)
   foe X tri ALT             a Triangle bobbing around altitude ALT (same
                             scale as the ground, may go up to 240)
+  item X speed ALT          a Rhombus: Max Speed (gear 5 for 20 s)
+  item X phase ALT          a Rhombus: Phase Out (a ghost for 10 s)
+  trap X spikes             spikes on the Line
+
+The finish post stands at the end of the last segment; after it the Line
+runs on flat (the level ends when Linner passes the post).
 
 ALT is the altitude of the ground line in pixels above its lowest position
 (0..126; screen row = 270 - ALT). TYPE is ground, water or gap. Slopes are
@@ -35,8 +42,9 @@ Output, 5 bytes per segment, terminated by a 0 length:
   dw slope              signed 8.8 change of the height key per pixel
   db key_end            height key at the end (0 = highest, 126 = lowest)
 then LABEL_foes: (dw x, db type, db param) sorted by x, ended by dw &FFFF
-(type 1 Rectangle, 2 Triangle with param = top row of its bob centre), and
-LABEL_length = the level's length in pixels (it loops).
+(1 Rectangle, 2 Triangle, 4/5 Rhombus, 6 spikes, 7 finish post; param = top
+row of a bobbing thing's centre), LABEL_length, LABEL_goal (the finish x)
+and LABEL_time (the time limit in BCD).
 """
 import sys
 
@@ -52,11 +60,16 @@ def key(alt):
 
 
 FOES = {"rect": 1, "tri": 2}
+ITEMS = {"speed": 4, "phase": 5}
+TRAPS = {"spikes": 6}
+GOAL = 7
 TRI_H = 13
+RHOMB_H = 17
 
 
 def parse(src):
     start = None
+    time = 60
     segs = []
     foes = []
     for n, line in enumerate(open(src), 1):
@@ -66,6 +79,23 @@ def parse(src):
         where = f"{src}:{n}"
         if line[0] == "start":
             start = int(line[1])
+            continue
+        if line[0] == "time":
+            time = int(line[1])
+            if not 1 <= time <= 999:
+                sys.exit(f"{where}: time must be 1..999 seconds")
+            continue
+        if line[0] == "item":
+            x, kind, alt = int(line[1]), line[2], int(line[3])
+            if kind not in ITEMS:
+                sys.exit(f"{where}: unknown item {kind}")
+            foes.append((x, ITEMS[kind], 254 - alt - RHOMB_H // 2, where))
+            continue
+        if line[0] == "trap":
+            x, kind = int(line[1]), line[2]
+            if kind not in TRAPS:
+                sys.exit(f"{where}: unknown trap {kind}")
+            foes.append((x, TRAPS[kind], 0, where))
             continue
         if line[0] == "foe":
             x, kind = int(line[1]), line[2]
@@ -89,7 +119,7 @@ def parse(src):
         segs.append((ln, alt, typ, where))
     if start is None or not segs:
         sys.exit(f"{src}: needs a start line and at least one segment")
-    return start, segs, sorted(foes)
+    return start, time, segs, sorted(foes)
 
 
 def generate(start, segs):
@@ -111,8 +141,6 @@ def generate(start, segs):
             y = (y + slope) & 0xFFFF
         y = key(alt) << 8 | 0x80
         cur = alt
-    if cur != start:
-        sys.exit(f"level loops, so it must end at altitude {start} (ends at {cur})")
     return keys, where, out
 
 
@@ -123,8 +151,8 @@ def check(keys, where):
         a, b = keys[i - 1], keys[i]
         if a != 0xFF and b != 0xFF and abs((a & 127) - (b & 127)) > 1:
             sys.exit(f"{where[i]}: the generated line jumps {abs((a & 127) - (b & 127))} rows")
-    # per-window change budget (the level loops, so wrap around)
-    ext = keys * (2 + (SCREEN_W + SCROLL_MAX) // n)
+    # per-window change budget; after the end the Line runs on flat
+    ext = keys + [keys[-1]] * (SCREEN_W + SCROLL_MAX)
     changed = [1 if ext[i] != ext[i - SCROLL_MAX] else 0 for i in range(len(ext))]
     win = sum(changed[SCROLL_MAX:SCROLL_MAX + SCREEN_W])
     worst, worst_at = win, 0
@@ -139,12 +167,11 @@ def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     budget = "--no-budget" not in sys.argv
     src, label, out_path = args[:3]
-    start, segs, foes = parse(src)
+    start, time, segs, foes = parse(src)
     keys, where, data = generate(start, segs)
     worst, at = check(keys, where)
-    est = 7700 + worst * 54
     report = (f"{src}: {len(keys)} px, worst screen at x={at} ({where[at]}): "
-              f"{worst} changing columns at top speed, ~{est} us per frame")
+              f"{worst} changing columns at top speed (budget {MAX_CHANGED})")
     if budget and worst > MAX_CHANGED:
         sys.exit(report + f"\n  over budget ({MAX_CHANGED}): use gentler or shorter slopes there")
     print(report)
@@ -157,9 +184,13 @@ def main():
     o.append("  db 0")
     o.append(f"; {len(data)} segments, {len(keys)} pixels")
     o.append(f"{label}_length equ {len(keys)}")
+    o.append(f"{label}_goal equ {len(keys)}")
+    o.append(f"{label}_time equ &{time:04d}")
+    foes.append((len(keys) - 2, GOAL, 0, src))      # the finish post
+    foes.sort()
     o.append(f"{label}_foes:")
     for x, typ, param, w in foes:
-        if not 0 <= x < len(keys):
+        if not 0 <= x <= len(keys):
             sys.exit(f"{w}: foe outside the level (0..{len(keys) - 1})")
         o.append(f"  dw {x}\n  db {typ},{param}")
     o.append("  dw &FFFF")
