@@ -1,0 +1,48 @@
+# Linner - level 1 terrain (loops back to the start until Phase 6 adds an end)
+# LEN ALT TYPE: the line runs LEN pixels to altitude ALT (0..126).
+#
+# Slope budget (checked by tools/level2asm.py): at top speed every column on
+# a slope of 1/4 or more changes each frame. Keep long stretches flat or at
+# 1/8 or gentler; steep ramps (up to 45 degrees) only in short bursts.
+start 30
+
+# --- the Bureau's flat, boring Line ----------------------------------------
+200 30  ground
+120 30  ground
+
+# --- Linner starts to warp it: long gentle swells --------------------------
+160 50  ground      # 1/8 up
+120 50  ground
+160 30  ground      # 1/8 down
+60  30  ground
+
+# --- a short steep ramp onto a plateau --------------------------------------
+24  48  ground      # 3/4 kicker
+140 48  ground
+120 63  ground      # 1/8 up
+100 63  ground
+
+# --- down into a valley with a water line -----------------------------------
+16  52  ground      # short drop
+200 32  ground      # 1/10 down
+96  32  water       # circles can't swim
+40  32  ground
+120 47  ground      # 1/8 up
+120 47  ground
+
+# --- rolling bumps: short ramps, long flats ---------------------------------
+12  56  ground
+60  56  ground
+12  47  ground
+120 47  ground
+12  58  ground
+60  58  ground
+12  47  ground
+120 47  ground
+
+# --- the long descent home --------------------------------------------------
+200 22  ground      # 1/8 down
+60  22  water
+40  22  ground
+64  30  ground      # 1/8 up to the start altitude
+140 30  ground
