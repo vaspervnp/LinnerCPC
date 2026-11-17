@@ -50,7 +50,7 @@ foe 1195 rect
 foe 1415 tri 120
 foe 1375 rect
 foe 1770 rect
-foe 1790 tri 95
+foe 1800 tri 95
 foe 2345 tri 105
 foe 2345 rect
 foe 2455 tri 90
@@ -58,7 +58,7 @@ foe 2605 rect
 # foe 2220 tri 115   (dropped: frame budget at the new speeds)
 foe 2905 rect
 foe 3065 tri 100
-foe 3355 tri 85
+foe 3375 tri 85
 foe 3225 rect
 item 1780 phase 80
 item 2805 speed 85
@@ -102,7 +102,7 @@ foe 6648 tri 114
 126 30  ground
 70  30  gap  # gear 2
 255 30  ground
-foe 7086 tri 64
+foe 7096 tri 64
 255 30  ground
 foe 7215 rect
 216 30  ground
@@ -120,7 +120,7 @@ foe 8132 tri 75
 194 30  ground
 59  30  water
 255 30  ground
-foe 9177 tri 101
+foe 9197 tri 101
 255 30  ground
 foe 9316 rect
 255 30  ground

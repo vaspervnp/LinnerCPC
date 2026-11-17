@@ -62,10 +62,10 @@ time 105
 20  40  ground
 200 40  ground
 
-foe 3330 tri 110
+foe 3340 tri 110
 foe 900 tri 90
 # foe 1000 tri 100   (dropped: frame budget at the new speeds)
-foe 1840 tri 130
+foe 1860 tri 130
 foe 2175 tri 100
 foe 2770 tri 90
 foe 3965 tri 110

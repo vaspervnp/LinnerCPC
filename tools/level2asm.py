@@ -315,9 +315,11 @@ def frame_cost(keys, foes):
 
 
 # A Triangle drifts 1 px/frame towards Linner from the moment it appears
-# (288 px ahead of him), so they meet 288 / (v + 1) px before its x: for a
-# cruise in gear 3..4, with some slack.
-MEET = (int(288 / (GEAR_SPEEDS[3] + 1)) - 15, int(288 / (GEAR_SPEEDS[2] + 1)) + 15)
+# (AHEAD px ahead of him: screen x 384, Linner at HERO_X), so they meet
+# AHEAD / (v + 1) px before its x: for a cruise in gear 3..4, with some slack.
+HERO_X = 30                     # src/defs.asm
+AHEAD = SCREEN_W - HERO_X
+MEET = (int(AHEAD / (GEAR_SPEEDS[3] + 1)) - 15, int(AHEAD / (GEAR_SPEEDS[2] + 1)) + 15)
 
 
 def landings(keys, where, foes=()):
@@ -361,7 +363,7 @@ def landings(keys, where, foes=()):
 def fairness(keys, foes):
     """Spots where a foe makes a jump unfair (warnings, not errors).
     A Triangle drifts left at 1 px/frame from the moment it spawns (screen
-    x 384, Linner at 96), so it meets Linner ~70..120 px before its x: a
+    x 384, Linner at HERO_X), so it meets Linner MEET px before its x: a
     gap, water or spikes there means jumping into it. A Rectangle patrols
     its whole stretch of ground: spikes on the same stretch, or a landing
     right at its edge, leave no room."""

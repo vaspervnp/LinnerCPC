@@ -70,7 +70,9 @@ KEY_GAP         equ &FF
 KEY_WATER       equ &80
 
 ; --- Linner -----------------------------------------------------------------
-HERO_X          equ 96          ; fixed screen x of Linner's centre
+HERO_X          equ 30          ; fixed screen x of Linner's centre: his own
+                                ; width (2 x LINNER_R) free behind him
+                                ; (tools/gen_tables.py, level2asm.py: HERO_X)
 HERO_XB0        equ (HERO_X-12)>>2  ; byte columns under Linner (x +-10)
 HERO_XB1        equ (HERO_X+12)>>2
 GEARS           equ 5

@@ -49,7 +49,7 @@ F_DEAD      equ 2
 
 RECT_SPEED  equ &FF80           ; -0.5 px/frame: marching at Linner
 TRI_SPEED   equ &FF00           ; -1.0
-SHOT_INTERVAL   equ 8               ; frames between shots
+SHOT_GAP_MIN    equ 4               ; frames between shots, at least (shot_gap)
 SCORE_RECT  equ &10             ; points, BCD
 SCORE_TRI   equ &15
 
@@ -330,8 +330,18 @@ thing_update:
   ld (ix+O_Y),a
   ret
 
-; A shot flies straight; the Line, the screen edges and foes stop it.
+; A shot flies straight; the Line, the screen edges and foes stop it. On
+; screen it keeps its aim velocity: each frame its x speed is the aim's
+; (O_SHOT_VX) plus Linner's current one, so a shot fired in a low gear
+; doesn't crawl (and hold its slot) once the gears climb.
+O_SHOT_VX   equ O_TIMER         ; (word: O_TIMER, O_BASE)
 shot_update:
+  ld l,(ix+O_SHOT_VX)
+  ld h,(ix+O_SHOT_VX+1)
+  ld de,(speed)
+  add hl,de
+  ld (ix+O_VX),l
+  ld (ix+O_VX+1),h
   call obj_move_x
   ld a,(ix+O_Y)
   ld b,a                        ; previous row
@@ -545,7 +555,7 @@ fire_shot:
   djnz .find
   ret                           ; all four in flight
 .found:
-  ld a,SHOT_INTERVAL
+  call shot_gap
   ld (shot_cool),a
   ld a,T_SHOT
   call obj_settype
@@ -582,6 +592,8 @@ fire_shot:
   ld c,(hl)
   inc hl
   ld b,(hl)
+  ld (ix+O_SHOT_VX),c
+  ld (ix+O_SHOT_VX+1),b
   ld hl,(speed)
   add hl,bc
   ld (ix+O_VX),l
@@ -594,6 +606,51 @@ fire_shot:
   inc hl
   ld a,(hl)
   ld (ix+O_VY+1),a
+  ret
+
+; Frames until the next shot: a third of this one's flight to the screen
+; edge or the top (gen_tables: shot_gap_x / shot_gap_y), at least
+; SHOT_GAP_MIN. Shots then come evenly: by the time the 4th is due, the
+; 1st has gone. -> A. Keeps IX.
+shot_gap:
+  ld a,(hero_aim)
+  ld e,a
+  ld d,0
+  ld hl,shot_gap_y
+  add hl,de
+  ld c,(hl)                     ; C = 256 / (3 * vy), 0 = level shot
+  ld hl,shot_gap_x
+  add hl,de
+  ld b,(hl)                     ; B = x-limited frames / 3
+  ld a,c
+  or a
+  jr z,.min
+  ld hl,aim_y0
+  add hl,de
+  ld a,(hero_cy)
+  add a,(hl)
+  sub SHOT_H/2                  ; muzzle row (as fire_shot puts it)
+  ld e,a                        ; HL = E * C (8 x 8)
+  ld hl,0
+  ld d,h
+  ld a,8
+.mul:
+  add hl,hl
+  rl c
+  jr nc,.skip
+  add hl,de
+.skip:
+  dec a
+  jr nz,.mul
+  ld a,h                        ; y-limited frames / 3
+  cp b
+  jr nc,.min
+  ld b,a
+.min:
+  ld a,b
+  cp SHOT_GAP_MIN
+  ret nc
+  ld a,SHOT_GAP_MIN
   ret
 
 ; ---------------------------------------------------------------------------

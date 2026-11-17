@@ -416,6 +416,7 @@ hero_redraw:    db 0
 hud_soggy:      db 0
 hero_aim:       db 0
 aim_repeat:     db 0
+aim_acc:        db 0
 shot_cool:      db 0
 marker_drawn:   db 0
 marker_dcy:     db 0
@@ -435,8 +436,8 @@ hero_phase:     dw 0            ; frames of Phase Out left
 hero_ctab:      dw 0            ; circle_tab or ghost_tab
 hero_drawn_ctab: dw 0
 msg_cur:        dw 0
-hud_want:       defs 10
-hud_shown:      defs 10
+hud_want:       defs 12
+hud_shown:      defs 12
 hud_char:       db 0,0
 hud_box:        defs 5          ; the look each gear box has on screen
 spawn_ptr:      dw 0

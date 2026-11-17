@@ -25,9 +25,10 @@ Shift gear up / down          RIGHT / LEFT          right / left
 Aim the ray up / down         UP / DOWN             up / down
 Jump (hold for a full jump)   SPACE                 fire (either)
 
-Linner shoots by himself: a shot every 8 frames from the aim tick on his
-rim, up to 3 at once. The ray aims in 10-degree steps from straight ahead
-to straight up and behind (hold UP/DOWN to sweep it). Linner can't shoot downwards: a Rectangle below him has
+Linner shoots by himself, evenly spaced, from the aim tick on his rim, up
+to 3 at once (about two shots a second aiming ahead). The ray aims in 10-degree steps from straight ahead
+to straight up and behind (hold UP/DOWN to sweep it quickly). The status bar shows the gears, the
+soggy bar, V (speed in pixels per frame), the score, the time and the lives. Linner can't shoot downwards: a Rectangle below him has
 to be jumped.
 
 

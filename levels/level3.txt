@@ -64,10 +64,10 @@ foe 740 tri 120
 # (dropped for the frame budget) foe 1080 rect
 foe 1080 tri 100
 foe 1420 rect
-foe 2355 tri 110
+foe 2375 tri 110
 # foe 2070 tri 100   (dropped: frame budget at the new speeds)
 foe 3415 rect
-foe 3265 tri 120
+foe 3275 tri 120
 item 1480 phase 100
 item 2595 phase 90
 trap 1980 spikes

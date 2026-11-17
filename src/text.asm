@@ -117,6 +117,7 @@ text_at:
 ; HUD fields. Each frame at most one field is brought up to date, one
 ; character at a time, so a change never costs more than ~300 NOPs.
 ; ---------------------------------------------------------------------------
+HUD_SPEED_COL  equ 36               ; "V 0.0" (px per frame)
 HUD_SCORE_COL  equ 48               ; "SCORE 000000"
 HUD_TIME_COL   equ 74               ; "T 000"
 HUD_LIVES_COL  equ 86               ; "@x3"
@@ -131,6 +132,12 @@ hud_labels:
   ld hl,HUD_TEXT_ROW0+HUD_LIVES_COL
   ld de,txt_lives
   call print_hud
+  ld hl,HUD_TEXT_ROW0+HUD_SPEED_COL ; "V" and "." apart: the digits
+  ld de,txt_speed                   ; stay until they are redrawn
+  call print_hud
+  ld hl,HUD_TEXT_ROW0+HUD_SPEED_COL+6
+  ld de,txt_dot
+  call print_hud
   ld hl,hud_shown               ; force every digit to be redrawn
   ld b,HUD_DIGITS
 .inv:
@@ -141,15 +148,18 @@ hud_labels:
 txt_score: db "SCORE",0
 txt_time:  db "T",0
 txt_lives: db "@X",0
+txt_speed: db "V",0
+txt_dot:   db ".",0
 
 ; The digits on screen (hud_shown) chase the wanted ones (hud_want).
 ; Returns NZ if it drew one this frame.
-HUD_DIGITS equ 10                   ; 6 score, 3 time, 1 lives
+HUD_DIGITS equ 12                   ; 6 score, 3 time, 1 lives, 2 speed
 hud_digit_col:
   db HUD_SCORE_COL+12, HUD_SCORE_COL+14, HUD_SCORE_COL+16
   db HUD_SCORE_COL+18, HUD_SCORE_COL+20, HUD_SCORE_COL+22
   db HUD_TIME_COL+4, HUD_TIME_COL+6, HUD_TIME_COL+8
   db HUD_LIVES_COL+4
+  db HUD_SPEED_COL+4, HUD_SPEED_COL+8
 
 hud_text_update:
   ld hl,score                   ; BCD -> one digit per byte
@@ -187,6 +197,22 @@ hud_text_update:
   ld (de),a
   inc de
   ld a,(lives)
+  ld (de),a
+  inc de
+  ld hl,(speed)                 ; speed: units and tenths of px per frame
+  ld a,h
+  ld (de),a
+  inc de
+  ld a,l                        ; tenths = low byte * 10 / 256
+  ld l,a
+  ld h,0
+  add hl,hl
+  ld b,h
+  ld c,l
+  add hl,hl
+  add hl,hl
+  add hl,bc
+  ld a,h
   ld (de),a
   ld hl,hud_want                ; first digit that differs
   ld de,hud_shown

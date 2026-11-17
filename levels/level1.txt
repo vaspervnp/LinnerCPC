@@ -69,7 +69,7 @@ foe 260  rect
 foe 740 rect
 foe 1000 tri 120
 foe 1100 rect
-foe 1660 tri 115
+foe 1670 tri 115
 foe 1840 rect
 foe 2390 tri 125
 foe 2370 rect

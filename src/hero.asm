@@ -160,8 +160,8 @@ hero_controls:
 ; towards straight up and over to behind), repeating while held. Linner
 ; shoots by himself, as often as the cool-down and the free shot slots allow.
 AIM_START   equ 2               ; 20 degrees up from straight ahead
-AIM_DELAY   equ 12              ; frames before a held key repeats
-AIM_RATE    equ 4
+AIM_DELAY   equ 4               ; frames before a held key repeats
+AIM_RATE    equ 3               ; then AIM_RATE steps every 4 frames
 hero_aiming:
   ld hl,shot_cool
   ld a,(hl)
@@ -176,14 +176,31 @@ hero_aiming:
   ld b,a
   ld a,(pad_new)
   and b
-  ld a,AIM_DELAY
-  jr nz,.turn                   ; just pressed
+  jr z,.held
+  ld a,AIM_DELAY                ; just pressed
+  ld (aim_repeat),a
+  ld a,4-AIM_RATE               ; the first repeat lands as the delay ends
+  ld (aim_acc),a
+  jr .turn
+.held:
   ld hl,aim_repeat
+  ld a,(hl)
+  or a
+  jr z,.rate
   dec (hl)
   ret nz
-  ld a,AIM_RATE
+.rate:
+  ld a,(aim_acc)                ; AIM_RATE quarters a frame: a step per 4
+  add a,AIM_RATE
+  cp 4
+  jr c,.wait
+  sub 4
+  ld (aim_acc),a
+  jr .turn
+.wait:
+  ld (aim_acc),a
+  ret
 .turn:
-  ld (aim_repeat),a
   ld hl,hero_aim
   bit PAD_UP,b
   jr z,.down

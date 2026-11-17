@@ -88,13 +88,20 @@ Design: `linner_game_story.md`, plan: `milestones.md`.
   keeps its 50 Hz pace and only the picture drops to 25 Hz.
 - Controls: LEFT/RIGHT shift gear (1..4, gear 5 locked), SPACE or joystick
   fire 2 jumps (hold for a full jump), UP/DOWN aim (19 steps of 10 degrees,
-  0 = straight ahead, 9 = up, 18 = behind; repeats when held). Linner
-  shoots by himself (the user's choice: no fire key): one shot every 8
-  frames while fewer than 3 are in flight (a 4th cost ~900 us a frame).
+  0 = straight ahead, 9 = up, 18 = behind; held: first repeat after
+  AIM_DELAY 4 frames, then AIM_RATE 3 steps per 4 frames via aim_acc, 3x
+  the old 12 / 4, the user asked). Linner shoots by himself (the user's
+  choice: no fire key), evenly spaced (the user asked: no 3-then-pause):
+  shot_gap reloads shot_cool with a third of the new shot's flight to the
+  screen edge or the top (gen_tables shot_gap_x per aim; shot_gap_y x the
+  muzzle row / 256), so a slot frees as the next shot is due: ~23 frames
+  aiming ahead. 3 slots (a 4th cost ~900 us a frame).
   Either joystick button jumps; nothing sets PAD_FIRE but the tests.
 - The ray keeps rolling with the distance (Phase 3); the aim is a short
   tick just outside the rim. Shots start at the tick, fly at 5 px/frame
-  plus Linner's speed, and stop at the Line, the screen edges or a foe.
+  plus Linner's *current* speed (shot_update adds speed to O_SHOT_VX each
+  frame, so a shot fired in a low gear doesn't crawl once the gears
+  climb), and stop at the Line, the screen edges or a foe.
 - Foes (objects.asm, spawned from `foe` lines in the level; 6 slots for
   foes, items and traps, 3 for shots):
   Rectangles (16x12) march along the Line at 0.5 px/frame and turn back at
@@ -127,7 +134,9 @@ Design: `linner_game_story.md`, plan: `milestones.md`.
   until the pickup. Both end with the life. +50 points each.
 - Traps: `trap X spikes` (19x8 on the Line). The finish post is added by
   the tool at the end of the last segment; after it the Line runs on flat.
-- HUD: gear boxes, soggy bar, "SCORE 000000", "T 060", "@X3" (lives).
+- HUD: gear boxes, soggy bar (10 bytes, 8 soggy units each), "V 4.8"
+  (speed, px/frame: 2 more digits in the HUD digit queue), "SCORE 000000",
+  "T 060", "@X3" (lives).
   Text uses a 5x7 font (gen_tables.py) via print_hud (write) / print_xor
   (messages over the play area, removed by printing again).
 
@@ -214,7 +223,8 @@ Design: `linner_game_story.md`, plan: `milestones.md`.
   few Triangles dropped, marked in the files).
 - Picking up Max Speed shifts straight into gear 5.
 - Fairness warnings (not errors; the levels have none): a Triangle meets
-  Linner MEET (34..87 px at gear 3-4 speeds) before its x (it drifts left as he comes): not over a
+  Linner MEET (45..103 px at gear 3-4 speeds, from AHEAD = 384 - HERO_X)
+  before its x (it drifts left as he comes): not over a
   gap / water / spikes if its bob reaches a full jump's top; spikes or a
   Rectangle start at least 80 px from a gap / water edge (landings); no
   spikes within 160 px of a Rectangle on its stretch.
@@ -230,6 +240,9 @@ Design: `linner_game_story.md`, plan: `milestones.md`.
   Line (4 too).
 
 ## Architecture decisions (from the user)
+- Linner's centre is at screen x HERO_X = 30 (the user asked: only his
+  own width free behind him); gen_tables.py (shot gaps) and level2asm.py
+  (HERO_X, MEET) carry the same number.
 - Mode 1 full overscan, 384x272, **single buffer** at &8000-&FFFF (32K via
   the R12 bits 2-3 trick, R12/R13 = &2C/&10 so charline 21 starts exactly at
   &C000). Runs on any 64K CPC; code, tables and levels live in

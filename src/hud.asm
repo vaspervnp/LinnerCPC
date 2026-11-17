@@ -9,8 +9,8 @@ HUD_BOX_ROW0   equ &8000+3*&800+32  ; screen row 3, byte column 0
 HUD_BOX_COL    equ 2
 HUD_BOX_W      equ 3                ; bytes (12 pixels)
 HUD_H          equ 10               ; rows
-SOGGY_COL      equ 24               ; bar: byte columns 24..43
-SOGGY_BYTES    equ 20               ; SOGGY_MAX / 4
+SOGGY_COL      equ 24               ; bar: byte columns 24..33
+SOGGY_BYTES    equ 10               ; SOGGY_MAX / 8
 
 ; One HUD job per frame: a digit, else a gear box, else the soggy bar.
 hud_update:
@@ -19,6 +19,7 @@ hud_update:
   call hud_gears
   ret nz
   ld a,(hero_soggy)             ; the bar moves at most one byte per frame
+  srl a
   srl a
   srl a
   ld hl,hud_soggy
@@ -35,7 +36,7 @@ hud_update:
   ld c,0
   ; fall through
 
-; A = bar byte (0..19), C = value: fill that byte column of the bar.
+; A = bar byte (0..9), C = value: fill that byte column of the bar.
 hud_soggy_byte:
   add a,SOGGY_COL
   ; fall through

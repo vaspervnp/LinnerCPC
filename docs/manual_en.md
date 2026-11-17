@@ -79,6 +79,7 @@ The top of the screen is the status bar:
   while gear 5 is locked, and turns green while Max Speed is active.
 - **Soggy bar** (between the two green marks). A blue bar that fills while
   Linner rolls through water. When it is full, he sinks.
+- **V**, Linner's speed in pixels per frame (1.0 in gear 1, 7.0 in gear 5).
 - **SCORE**, six digits.
 - **T**, the seconds left on the level's clock.
 - **Lives**: the little circle and the number of lives left.
@@ -123,12 +124,14 @@ away under him, at a ledge or the edge of a gap, he falls too.
 The ray inside Linner keeps turning as he rolls. The small tick just
 outside his rim shows where he is **aiming**. UP and DOWN turn the aim in
 10-degree steps, from straight ahead, through straight up, to straight
-behind.
+behind. Hold the key and the aim sweeps quickly (about 4 steps in 5 frames).
 
-Linner **shoots by himself**: a shot leaves the tick every 8 frames, as
-long as fewer than **3 shots** are in flight. A shot flies at 5 pixels a
-frame plus Linner's own speed, and stops when it hits a foe, The Line or
-the edge of the screen. All you choose is where he aims.
+Linner **shoots by himself**, at an even pace: up to **3 shots** are in
+flight, and the next one leaves the tick once a third of a shot's flight
+has passed (about every half second when aiming ahead). A shot flies at
+5 pixels a frame plus Linner's own speed, so on the screen it always moves
+at the same pace, and stops when it hits a foe, The Line or the edge of the
+screen. All you choose is where he aims.
 
 Linner can't shoot downwards. A Rectangle lower down than him has to be
 jumped.

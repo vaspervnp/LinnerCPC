@@ -370,6 +370,29 @@ def main():
     tab("shot_vx", [round(SHOT_SPEED * 256 * math.cos(t)) for t in angs], True)
     tab("shot_vy", [round(-SHOT_SPEED * 256 * math.sin(t)) for t in angs], True)
     o.append(f"AIM_STEPS equ {len(angs)}")
+    # Shot spacing: fire_shot waits a third of the new shot's flight time
+    # (3 slots), so a slot frees about when the next shot is due and the
+    # shots come evenly instead of 3 quick ones and a long pause. On screen
+    # a shot moves at its aim velocity (the scroll cancels Linner's speed),
+    # so the time to the left / right edge is fixed per aim (shot_gap_x,
+    # already divided by 3); the time to the top depends on the muzzle's
+    # row y0: frames/3 = y0 * shot_gap_y / 256 (0 = never reaches the top).
+    HERO_X, SCREEN_W, SHOT_W_ = 3 * R, 384, 2    # src/defs.asm HERO_X
+    gx, gy = [], []
+    for t in angs:
+        vx = SHOT_SPEED * math.cos(t)
+        vy = SHOT_SPEED * math.sin(t)
+        x0 = HERO_X + round(13 * math.cos(t)) - SHOT_W_ // 2
+        if vx > 0.01:
+            life = (SCREEN_W - SHOT_W_ - x0) / vx
+        elif vx < -0.01:
+            life = x0 / -vx
+        else:
+            life = 765
+        gx.append(min(255, round(life / 3)))
+        gy.append(0 if vy < 0.01 else min(255, round(256 / (3 * vy))))
+    tab("shot_gap_x", gx)
+    tab("shot_gap_y", gy)
 
     # Triangle bobbing: 64 steps of 12*sin
     tab("bob_tab", [round(12 * math.sin(2 * math.pi * i / 64)) for i in range(64)])
