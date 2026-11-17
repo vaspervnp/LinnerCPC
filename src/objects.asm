@@ -80,6 +80,7 @@ objects_init:
   ld (spawn_ptr),hl
   ld hl,0
   ld (spawn_base),hl
+  ld (spawn_x),hl
   xor a
   ld (shot_cool),a
   ret
@@ -408,22 +409,23 @@ obj_place:
   jr .off
 
 ; ---------------------------------------------------------------------------
-; Spawning: the level's foe list (levelN_foes) is a list of (dw x, db type, db param) sorted by x,
-; ended by &FFFF. A thing appears when its x reaches the right screen edge.
+; Spawning: the level's foe list (levelN_foes, sorted by x) holds records
+; db dx, tb [, param]: dx = pixels on from the previous record, tb = type
+; (0: just a step) + 16 x seconds for a Rhombus, param (Triangle, Rhombus)
+; = the top row of its centre. db 0,&FF ends it. A thing appears when its
+; x reaches the right screen edge. spawn_base = x of the previous record.
 ; ---------------------------------------------------------------------------
 spawn_foes:
   ld hl,(spawn_ptr)
   ld e,(hl)
   inc hl
-  ld d,(hl)
-  ld a,d
-  and e
+  ld a,(hl)
   inc a
   ret z                         ; the end of the list
-.entry:
+  ld d,0
   ld hl,(spawn_base)
-  add hl,de                     ; world x of the next foe
-  push hl
+  add hl,de                     ; world x of the next record
+  ld (spawn_x),hl
   ld de,(scroll_wx)
   or a
   sbc hl,de
@@ -433,10 +435,13 @@ spawn_foes:
   jr c,.due
   ld a,h
   or l
-  jr z,.due
-  pop hl
-  ret
+  ret nz
 .due:
+  ld hl,(spawn_ptr)
+  inc hl
+  ld a,(hl)
+  and 15
+  jr z,.advance                 ; a step
   ld ix,OBJECTS                 ; free foe slot?
   ld b,MAX_FOES
 .find:
@@ -446,35 +451,42 @@ spawn_foes:
   ld de,OBJ_SIZE
   add ix,de
   djnz .find
-  pop hl                        ; all busy: this one never shows up
-  jr .advance
+  jr .advance                   ; all busy: this one never shows up
 .found:
+  push ix                       ; clean slot
   pop hl
-  push ix
-  pop de
-  ld b,OBJ_SIZE                 ; clean slot
-  push hl
-  ld h,d
-  ld l,e
+  ld b,OBJ_SIZE
   xor a
 .clr:
   ld (hl),a
   inc hl
   djnz .clr
-  pop hl
+  ld hl,(spawn_x)
   ld (ix+O_X),l
   ld (ix+O_X+1),h
   ld hl,(spawn_ptr)
   inc hl
+  ld a,(hl)                     ; type + seconds
   inc hl
-  ld a,(hl)                     ; type
   push hl
+  ld c,a
+  rrca
+  rrca
+  rrca
+  rrca
+  and 15
+  ld (ix+O_VY),a                ; a Rhombus keeps its seconds here
+  ld a,c
+  and 15
   call obj_settype
   pop hl
-  inc hl
+  ld a,(ix+O_TYPE)
+  call spawn_param
+  jr nc,.noparam
   ld a,(hl)                     ; param
   ld (ix+O_BASE),a
   ld (ix+O_Y),a
+.noparam:
   ld hl,RECT_SPEED
   ld a,(ix+O_TYPE)
   cp T_RECT
@@ -487,14 +499,36 @@ spawn_foes:
   ld (ix+O_VX),l
   ld (ix+O_VX+1),h
 .advance:
+  ld hl,(spawn_x)
+  ld (spawn_base),hl
   ld hl,(spawn_ptr)
-  ld de,4
-  add hl,de
+  inc hl
+  ld a,(hl)
+  inc hl
+  and 15
+  call spawn_param
+  jr nc,.next
+  inc hl
+.next:
   ld (spawn_ptr),hl
   jp spawn_foes
 
+; A = type: carry if its record has a param byte (Triangle, Rhombus).
+spawn_param:
+  cp T_TRI
+  scf
+  ret z
+  cp T_FAST
+  scf
+  ret z
+  cp T_PHASE
+  scf
+  ret z
+  or a
+  ret
+
 ; ---------------------------------------------------------------------------
-; Firing (called from hero_controls when FIRE is held)
+; Firing (automatic: called from hero_aiming every frame)
 ; ---------------------------------------------------------------------------
 fire_shot:
   ld a,(shot_cool)
@@ -715,10 +749,12 @@ things_vs_hero:
   ret
 .fast:
   set F_DEAD,(ix+O_FLAGS)
+  ld a,(ix+O_VY)                ; its seconds
   call powerup_fast
   jr .next
 .phase:
   set F_DEAD,(ix+O_FLAGS)
+  ld a,(ix+O_VY)
   call powerup_phase
 .next:
   ld de,OBJ_SIZE
@@ -736,6 +772,8 @@ things_vs_hero:
 render:
   call linner_erase
   call linner_draw
+  xor a
+  ld (part_busy),a
   ld ix,OBJECTS
   ld b,MAX_OBJ
 .lp:
@@ -743,12 +781,20 @@ render:
   ld a,(ix+O_TYPE)
   or a
   jr z,.next
+  ld hl,part_busy               ; (the particles rest on busy frames)
+  inc (hl)
   call obj_redraw
 .next:
   ld de,OBJ_SIZE
   add ix,de
   pop bc
   djnz .lp
+  ld a,(frame_late)             ; behind (a picture was dropped): no
+  or a                          ; particles this time
+  jr nz,.noparts
+  ld a,(part_busy)
+  call particles_update
+.noparts:
   call ground_begin
   ld e,0
   ld b,BYTES_PER_LINE

@@ -43,7 +43,7 @@ shot() {
 
 loading() {
   # The DISC.BAS loading screen: boot the disc and shoot while LINNER.BIN loads.
-  local pad; pad=$(printf 'z%.0s' $(seq 1 ${LOADING_PAD:-30}))
+  local pad; pad=$(printf 'z%.0s' $(seq 1 ${LOADING_PAD:-140}))
   tools/cpcemu -nowait -timeout 60 -keys "run\"disc
 $pad" -shot "$OUT/loading.png" build/linner.dsk >/dev/null
   echo "$OUT/loading.png"

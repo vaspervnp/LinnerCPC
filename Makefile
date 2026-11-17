@@ -54,10 +54,11 @@ define make_dsk
 	  && iDSK linner.dsk -i LOADER.BIN -t 1 -e 9000 -c 9000 >/dev/null \
 	  && iDSK linner.dsk -i LINNER.BIN -t 1 -e 0040 -c 0040 >/dev/null \
 	  && iDSK linner.dsk -i HISCORE.DAT -t 0 >/dev/null
+	python3 tools/dsk2edsk.py $(1)/linner.dsk   # Extended DSK: emulators write it back whole
 	python3 tools/hiscore.py --where $(1)/linner.dsk | head -1
 endef
 
-$(B)/linner.dsk: $(B)/linner.sna $(B)/loader.bin src/disc.bas tools/hiscore.py
+$(B)/linner.dsk: $(B)/linner.sna $(B)/loader.bin src/disc.bas tools/hiscore.py tools/dsk2edsk.py
 	$(call make_dsk,$(B))
 	@echo "build: $(B)/linner.dsk + $(B)/linner.sna"
 

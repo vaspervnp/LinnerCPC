@@ -40,7 +40,8 @@ etch your name into the magnetic disc of history?
 RUN"DISC
 ```
 
-The loading screen appears and then the title screen. The high score table
+A vector world (The Line, a sunset, a floor running off to the horizon)
+is drawn while the game loads, and then the title screen appears. The high score table
 is saved on the game disc, so keep the disc writable (write protection
 off).
 
@@ -57,15 +58,15 @@ touch the disc, so high scores aren't saved.
 
 | Action | Keyboard | Joystick |
 |---|---|---|
-| Shift gear up | RIGHT | right |
+| Shift gear up (it also goes up by itself every 3 s) | RIGHT | right |
 | Shift gear down | LEFT | left |
 | Aim the ray up | UP | up |
 | Aim the ray down | DOWN | down |
-| Shoot | Z | fire 1 |
-| Jump (hold for a full jump) | SPACE | fire 2 |
-| Start a game (title screen) | Z or SPACE | fire 1 or fire 2 |
+| Jump (hold for a full jump) | SPACE | fire (either button) |
+| Start a game (title screen) | SPACE | fire |
 
-Holding UP or DOWN keeps turning the ray; holding Z keeps shooting.
+Holding UP or DOWN keeps turning the ray. There is no shoot button:
+Linner shoots by himself.
 
 ## The screen
 
@@ -87,23 +88,29 @@ moment it disappears and Linner starts rolling.
 
 ## Rolling and gears
 
-Linner always rolls forwards. You choose how fast with the gears:
+Linner always rolls forwards, and he gets faster by himself: **every 3
+seconds he shifts up a gear**, up to gear 4 (gear 5 with Max Speed). LEFT
+shifts down when you need time, RIGHT shifts up at once; either one starts
+the 3 seconds again. Every level and every life starts in gear 1.
 
 | Gear | Speed (pixels per frame) | Full jump covers |
 |---|---|---|
 | 1 | 1.0 | 40 px |
-| 2 | 1.5 | 60 px |
-| 3 | 2.0 | 80 px |
-| 4 | 2.75 | 110 px |
-| 5 | 3.5 | 140 px |
+| 2 | 1.875 | 75 px |
+| 3 | 3.0 | 120 px |
+| 4 | 4.81 | 192 px |
+| 5 | 7.0 | 280 px |
 
 Linner speeds up and slows down gradually, so shift a little before you
-need the speed. **Gear 5 is locked.** Only the Max Speed Rhombus opens it,
-for 20 seconds; after that Linner drops back to gear 4.
+need the speed. At the top speeds a busy screen may skip a picture now and
+then; the game itself never slows down. The streaks rushing through the sky show how fast he is
+going: the higher the gear, the faster and longer they get. **Gear 5 is locked.** Only the Max Speed Rhombus opens it,
+for a few seconds (3 to 8, each Rhombus has its own); after that Linner
+drops back to gear 4.
 
 ## Jumping
 
-Press SPACE (fire 2) to jump. **Hold it** for a full jump: 50 rows high and
+Press SPACE (or fire) to jump. **Hold it** for a full jump: 50 rows high and
 40 frames long. Release it early for a shorter hop. How far a jump carries
 Linner depends on the gear (see the table above).
 
@@ -118,15 +125,15 @@ outside his rim shows where he is **aiming**. UP and DOWN turn the aim in
 10-degree steps, from straight ahead, through straight up, to straight
 behind.
 
-Z (fire 1) **shoots** from the tick. A shot flies at 5 pixels a frame
-plus Linner's own speed, and stops when it hits a foe, The Line or the edge
-of the screen. Hold Z to keep firing, one shot every 8 frames. At most
-**3 shots** can be in flight at once.
+Linner **shoots by himself**: a shot leaves the tick every 8 frames, as
+long as fewer than **3 shots** are in flight. A shot flies at 5 pixels a
+frame plus Linner's own speed, and stops when it hits a foe, The Line or
+the edge of the screen. All you choose is where he aims.
 
 Linner can't shoot downwards. A Rectangle lower down than him has to be
 jumped.
 
-![Level 1: two shots on their way to a Rhombus, with a Rectangle ahead](screenshots/level1.png)
+![Level 1: Linner rolls on under the warp streaks](screenshots/level1.png)
 
 ## Dangers on The Line
 
@@ -161,18 +168,20 @@ and always stay above The Line. Shoot them before they reach you.
 
 Touching any foe costs a life.
 
-![Level 4, The Bureau: a ghost over spikes, a Rectangle ahead](screenshots/bureau.png)
+![Level 4, The Bureau: a Rectangle, a Triangle and a Rhombus ahead](screenshots/bureau.png)
 
 ## Rhombus powerups
 
 Rhombuses float above The Line. Roll or jump into one to pick it up:
 **50 points**. There are two kinds:
 
-- **Max Speed.** Gear 5 is unlocked for 20 seconds (the fifth gear box
-  turns green). Some chasms can't be jumped without it.
-- **Phase Out.** Linner becomes a dotted ghost for 10 seconds. Foes,
-  spikes and water can't hurt him, but **gaps still can**. The ghost
-  flickers during its last 2 seconds.
+- **Max Speed.** Gear 5 is unlocked (the fifth gear box turns green).
+  Some chasms can't be jumped without it.
+- **Phase Out.** Linner becomes a dotted ghost. Foes, spikes and water
+  can't hurt him, but **gaps still can**. The ghost flickers during its
+  last second.
+
+Each Rhombus lasts **3 to 8 seconds**; the level decides how long.
 
 Both end when you lose a life.
 
@@ -197,14 +206,17 @@ over. Clear the sixth level and The Line is yours.
 
 ## The levels
 
-| # | Name | Time | What's waiting |
-|---|---|---|---|
-| 1 | The Flat Line | 60 s | Gentle ground, the first foes, puddles and three gaps |
-| 2 | Swells | 55 s | Rolling hills, more Triangles, gaps that want gear 2 |
-| 3 | Water Lines | 55 s | The Bureau floods The Line: water everywhere |
-| 4 | The Bureau | 55 s | Little terrain, but twenty foes and spikes between them |
-| 5 | Chasms | 50 s | Chasms for gears 3 and 4, and the Great Chasm: Max Speed only |
-| 6 | End of the Line | 45 s | Everything the Bureau has, and a clock that doesn't wait |
+| # | Name | Length | Time | What's waiting |
+|---|---|---|---|---|
+| 1 | The Flat Line | 12,012 px | 120 s | Gentle ground, the first foes, puddles and gaps |
+| 2 | Swells | 12,904 px | 125 s | Rolling hills and plateaus, Triangles over the crests |
+| 3 | Water Lines | 13,799 px | 135 s | The Bureau floods The Line: water and flooded valleys |
+| 4 | The Bureau | 14,405 px | 140 s | Rectangles and Triangles everywhere, spikes in between |
+| 5 | Chasms | 15,301 px | 95 s | Gaps and ledges for gears 3 and 4, and three chasms only Max Speed clears |
+| 6 | End of the Line | 16,802 px | 105 s | Everything the Bureau has, three Max Speed chasms, and a tight clock |
+
+Each level is longer than the one before: about a minute of rolling in
+gear 4, more with the slower stretches.
 
 ![Level 5, Chasms: a jump across a gap](screenshots/chasm.png)
 
@@ -229,18 +241,18 @@ With equal scores, the older entry stays above.
 
 ## Tips
 
-- Look at the ground ahead and shift **before** a gap: speeding up takes
-  time.
-- Gear 4 isn't always best. On busy stretches a lower gear gives you time
-  to shoot.
+- Look at the ground ahead: a wide gap needs speed, so let the gears
+  climb (or press RIGHT) **before** it; speeding up takes time.
+- Gear 4 isn't always best. On busy stretches shift down (LEFT): a lower
+  gear gives Linner's shots time to clear the way.
 - Aim a little upwards for Triangles. A Rectangle at your level is easy to
   shoot; one below you has to be jumped.
 - Jump into water from the edge. The less water Linner rolls through, the
   drier he stays.
 - Keep a Phase Out for a stretch full of foes or water, but remember: a
   ghost still falls into gaps.
-- In level 5, take the Max Speed Rhombus and stay in gear 5 for the Great
-  Chasm.
+- A chasm that needs gear 5 always comes after a Max Speed Rhombus: take
+  it, shift up at once and jump before the boost runs out.
 
 ## Technical notes
 

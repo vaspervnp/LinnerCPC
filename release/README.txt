@@ -23,33 +23,34 @@ CONTROLS                      keyboard              joystick
 --------
 Shift gear up / down          RIGHT / LEFT          right / left
 Aim the ray up / down         UP / DOWN             up / down
-Shoot                         Z                     fire 1
-Jump (hold for a full jump)   SPACE                 fire 2
+Jump (hold for a full jump)   SPACE                 fire (either)
 
-The ray aims in 10-degree steps from straight ahead to straight up and
-behind (hold UP/DOWN to sweep it). Shots fly from the aim tick on the rim;
-up to 3 at once. Linner can't shoot downwards: a Rectangle below him has
+Linner shoots by himself: a shot every 8 frames from the aim tick on his
+rim, up to 3 at once. The ray aims in 10-degree steps from straight ahead
+to straight up and behind (hold UP/DOWN to sweep it). Linner can't shoot downwards: a Rectangle below him has
 to be jumped.
 
 
 THE RULES
 ---------
-* Five gears: 1.0 to 2.75 pixels per frame in gears 1-4. Gear 5 (3.5) is
-  locked; the Max Speed Rhombus opens it for 20 seconds.
+* Five gears, and Linner shifts up by himself every 3 seconds (LEFT and
+  RIGHT shift by hand): 1.0 to 4.8 pixels per frame in gears 1-4. Gear 5
+  (7.0) is locked; the Max Speed Rhombus opens it for 3 to 8 seconds.
+  Every level and life starts in gear 1.
 * Wide gaps need speed: a full jump lasts 40 frames, so it carries Linner
-  40 px in gear 1, 60 in gear 2, 80 in gear 3, 110 in gear 4, 140 in 5.
+  40 px in gear 1, 75 in gear 2, 120 in gear 3, 192 in gear 4, 280 in 5.
   Falling into a gap costs a life.
 * Water Lines slow Linner down and soak him (the blue bar at the top); at
   full soak he sinks. Cross them fast, jump into them late, or jump them.
 * Touching a Rectangle, a Triangle or spikes costs a life.
   Rectangle 10 points, Triangle 15, Rhombus 50.
-* Phase Out Rhombus: 10 seconds as a ghost - foes, spikes and water can't
-  hurt him (gaps still can). It flickers just before it ends.
+* Phase Out Rhombus: 3 to 8 seconds as a ghost - foes, spikes and water
+  can't hurt him (gaps still can). It flickers in its last second.
 * Every level has a clock. Each second left at the finish post is worth
   10 points; running out of time costs a life.
 * 3 lives. Losing one restarts the level.
-* Six levels: The Flat Line, Swells, Water Lines, The Bureau, Chasms,
-  End of the Line.
+* Six levels, each longer than the last (12,000 to 17,000 pixels): The Flat Line, Swells, Water Lines, The Bureau,
+  Chasms, End of the Line.
 
 
 HIGH SCORES

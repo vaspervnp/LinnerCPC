@@ -45,6 +45,7 @@ palette_black:
 
 palette_set:
   ld hl,palette
+palette_hl:                     ; HL -> pens 0..3 and the border
   ld bc,&7F00
 .lp:
   out (c),c
@@ -97,7 +98,13 @@ wait_frame:
   ld a,(last_vsync)
   cp (hl)
   jr z,.wait
-  ; already late: the last frame took more than 1/50 s
+  ; already late: the last loop took more than 1/50 s. Skip this frame's
+  ; picture (drawing now would race the beam) and wait for the next VSYNC;
+  ; the main loop catches the game up by one step.
+  ld a,1
+  ld (frame_late),a
+  ld a,(hl)
+  ld (last_vsync),a
   ld a,(frame_drops)
   inc a
   jr z,.wait                    ; saturate at 255

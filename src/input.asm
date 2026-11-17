@@ -55,8 +55,9 @@ kbd_down:
   ret
 
 ; Build pad (held) and pad_new (pressed this frame) from the cursor keys,
-; Z (fire), SPACE (jump) and joystick 0. The joystick's bits 0..3 (up,
-; down, left, right) are already the pad's; fire 1 shoots, fire 2 jumps.
+; SPACE (jump) and joystick 0. The joystick's bits 0..3 (up, down, left,
+; right) are already the pad's; either fire button jumps. Linner shoots by
+; himself, so nothing sets PAD_FIRE (the tests' autopilot still does).
 pad_read:
   call kbd_scan
   ld a,(keymap+9)               ; joystick (0 = pressed)
@@ -64,11 +65,8 @@ pad_read:
   ld b,a
   and &0F
   ld c,a
-  bit 5,b                       ; fire 1
-  jr z,.f2
-  set PAD_FIRE,c
-.f2:
-  bit 4,b                       ; fire 2
+  ld a,b                        ; fire 1 or fire 2
+  and &30
   jr z,.keys
   set PAD_JUMP,c
 .keys:
@@ -92,11 +90,6 @@ pad_read:
   jr nz,.k4
   set PAD_LEFT,c
 .k4:
-  ld a,(keymap+8)               ; Z
-  bit 7,a
-  jr nz,.k5
-  set PAD_FIRE,c
-.k5:
   ld a,(keymap+5)               ; SPACE
   bit 7,a
   jr nz,.done

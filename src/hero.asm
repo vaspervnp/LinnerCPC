@@ -9,12 +9,15 @@
 ; R = 10 (256 / (2 pi R) = 4.07).
 ; ===========================================================================
 
-; Gear target speeds, pixels per frame in 8.8 fixed point.
+; Gear target speeds, pixels per frame in 8.8 fixed point: 1.0 up to 7.0,
+; twice the old top (the user's choice). Linner shifts up by himself every
+; GEAR_TIME frames (LEFT / RIGHT still shift, and restart the count).
 gear_speed:
   dw &0000                      ; (unused gear 0)
-  dw &0100, &0180, &0200, &02C0, &0380
-ACCEL       equ &0006           ; per frame when below the gear's speed
-DECEL       equ &000C           ; per frame when above it
+  dw &0100, &01E0, &0300, &04D0, &0700
+ACCEL       equ &000C           ; per frame when below the gear's speed
+DECEL       equ &0018           ; per frame when above it
+GEAR_TIME   equ 150             ; 3 seconds
 MAX_GEAR_NORMAL equ 4           ; gear 5 needs the Maximum Speed powerup
 
 ; Vertical motion, rows per frame in 8.8 (game y grows downwards).
@@ -24,7 +27,8 @@ GRAVITY     equ &0040
 JUMP_V      equ &FB00           ; -5.0
 JUMP_CUT    equ &FE00           ; -2.0: rise speed left when jump is released
 VY_MAX      equ &0600
-DROP_MAX    equ 5               ; ground falling away faster than this: airborne
+DROP_MAX    equ 8               ; ground falling away faster than this: airborne
+                                ; (a 45 degree slope at 7 px/frame stays ground)
 LAND_TOL    equ 4               ; may land up to this far below the surface
 HERO_TOP    equ 18              ; highest centre (aim marker stays on screen)
 HERO_LOST   equ 255-LINNER_R    ; centre at/below this: off the bottom
@@ -43,7 +47,21 @@ HERO_ALIVE   equ 0
 HERO_SINKING equ 1
 HERO_GONE    equ 2
 
+; One gear up, if allowed; the 3-second count starts again either way.
+gear_up:
+  ld a,GEAR_TIME
+  ld (gear_timer),a
+  ld hl,max_gear
+  ld a,(gear)
+  cp (hl)
+  ret nc
+  inc a
+  ld (gear),a
+  ret
+
 hero_init:
+  ld a,GEAR_TIME
+  ld (gear_timer),a
   ld a,1
   ld (gear),a
   ld (hero_grounded),a
@@ -94,19 +112,19 @@ hero_update:
   jp hero_water
 
 hero_controls:
+  ld hl,gear_timer              ; every 3 seconds: one gear up by himself
+  dec (hl)
+  jr nz,.keys
+  call gear_up
+.keys:
   ld a,(pad_new)                ; gear shifts on RIGHT / LEFT presses
   bit PAD_RIGHT,a
-  jr z,.no_up
-  ld hl,max_gear
-  ld a,(gear)
-  cp (hl)
-  jr nc,.no_up
-  inc a
-  ld (gear),a
-.no_up:
+  call nz,gear_up
   ld a,(pad_new)
   bit PAD_LEFT,a
   jr z,.no_down
+  ld a,GEAR_TIME                ; (a shift restarts the count)
+  ld (gear_timer),a
   ld a,(gear)
   cp 2
   jr c,.no_down
@@ -139,7 +157,8 @@ hero_controls:
   ret
 
 ; UP / DOWN turn the aim through 0..180 degrees in 10 degree steps (UP
-; towards straight up and over to behind), repeating while held. FIRE shoots.
+; towards straight up and over to behind), repeating while held. Linner
+; shoots by himself, as often as the cool-down and the free shot slots allow.
 AIM_START   equ 2               ; 20 degrees up from straight ahead
 AIM_DELAY   equ 12              ; frames before a held key repeats
 AIM_RATE    equ 4
@@ -150,9 +169,7 @@ hero_aiming:
   jr z,.cool
   dec (hl)
 .cool:
-  ld a,(pad)
-  bit PAD_FIRE,a
-  call nz,fire_shot
+  call fire_shot
   ld a,(pad)
   and 1<<PAD_UP or 1<<PAD_DOWN
   ret z

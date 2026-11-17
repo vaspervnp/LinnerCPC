@@ -10,7 +10,7 @@ name The Flat Line
 # degrees) between flats are cheap; long gentle slopes and lots of height
 # change on one screen are not.
 start 30
-time 60
+time 120
 
 # --- the Bureau's flat, boring Line ----------------------------------------
 200 30  ground
@@ -35,7 +35,7 @@ time 60
 40  32  ground      # 1/2 down
 176 32  ground
 96  32  water       # circles can't swim
-40  32  ground
+120 32  ground
 30  47  ground      # 1/2 up
 210 47  ground
 
@@ -55,9 +55,9 @@ time 60
 50  22  ground      # 1/2 down
 150 22  ground
 60  22  water
-140 22  ground
+180 22  ground
 72  22  gap         # the chasm: gear 3 or faster
-60  22  ground
+220 22  ground
 16  30  ground      # back up to the start altitude
 188 30  ground
 
@@ -69,16 +69,101 @@ foe 260  rect
 foe 740 rect
 foe 1000 tri 120
 foe 1100 rect
-foe 1580 tri 115
-foe 1760 rect
-foe 2310 tri 125
-foe 2290 rect
-foe 2720 tri 105
+foe 1660 tri 115
+foe 1840 rect
+foe 2390 tri 125
+foe 2370 rect
+foe 3040 tri 105
 
 # --- Rhombus powerups and traps ----------------------------------------------
 # item X speed|phase ALT: a Rhombus hovering around altitude ALT
 # trap X spikes: spikes on the Line (jump them, or pass through as a ghost)
 item 620  speed 75
 trap 1300 spikes
-item 1450 phase 70
-trap 2025 spikes
+item 1530 phase 70
+trap 2105 spikes
+
+# === generated ===
+# tools/levelgen.py: 12000 px in all
+102 30  ground
+30  30  water
+255 30  ground
+item 3525 speed 51 8
+255 30  ground
+foe 3720 tri 72
+255 30  ground
+foe 3862 rect
+88  30  ground
+23  47  ground
+31  47  ground
+34  30  ground
+173 30  ground
+58  30  gap  # gear 2
+255 30  ground
+foe 4698 rect
+185 30  ground
+104 30  gap  # gear 3
+255 30  ground
+foe 5271 rect
+255 30  ground
+foe 5536 tri 74
+255 30  ground
+foe 5710 tri 117
+201 30  ground
+foe 5876 tri 83
+88  30  gap  # gear 3
+255 30  ground
+foe 6304 rect
+255 30  ground
+foe 6513 rect
+255 30  ground
+trap 6717 spikes
+255 30  ground
+trap 6892 spikes
+foe 7122 tri 104
+164 30  ground
+90  30  gap  # gear 3
+153 30  ground
+17  43  ground
+218 43  ground
+foe 7648 rect
+18  30  ground
+71  30  ground
+13  40  ground
+189 40  ground
+foe 7961 rect
+15  30  ground
+255 30  ground
+trap 8201 spikes
+235 30  ground
+foe 8365 rect
+72  30  gap  # gear 2
+209 30  ground
+57  30  gap  # gear 2
+183 30  ground
+32  47  ground
+40  47  ground
+25  30  ground
+255 30  ground
+item 9353 speed 65 6
+255 30  ground
+item 9487 phase 66 8
+255 30  ground
+trap 9716 spikes
+foe 9921 tri 81
+255 30  ground
+28  30  ground
+101 30  gap  # gear 3
+193 30  ground
+56  30  gap  # gear 2
+255 30  ground
+foe 10821 tri 120
+114 30  ground
+112 30  gap  # gear 3
+194 30  ground
+49  30  water
+255 30  ground
+foe 11515 rect
+143 30  ground
+58  30  water
+252 30  ground

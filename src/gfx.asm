@@ -36,8 +36,35 @@ pix_addr:
   ld h,a
   ret
 
+; A = pen mask for line_xor: &FF pen 3 (the game's), &F0 pen 1, &0F pen 2.
+line_pen:
+  ld (line_xd.pen+1),a
+  ld (line_xu.pen+1),a
+  ld (line_yd.pen+1),a
+  ld (line_yu.pen+1),a
+  ret
+
+; E = game y, C = pen mask: XOR a full-width row (96 bytes). Trashes A, B,
+; D, HL.
+hline_xor:
+  ld d,row_lo>>8
+  ld a,(de)
+  ld l,a
+  inc d
+  ld a,(de)
+  ld h,a
+  ld b,BYTES_PER_LINE
+.lp:
+  ld a,(hl)
+  xor c
+  ld (hl),a
+  inc hl
+  djnz .lp
+  ret
+
 ; ---------------------------------------------------------------------------
-; XOR line in pen 3. HL = x0, B = y0, DE = x1, C = y1 (game coordinates).
+; XOR line in pen 3 (or the pen set by line_pen). HL = x0, B = y0, DE = x1,
+; C = y1 (game coordinates).
 ; Lines wider than 255 pixels are not drawn (no object needs one).
 ; Trashes everything except IY.
 ; ---------------------------------------------------------------------------
@@ -100,8 +127,10 @@ line_xor:
 ; Inner loops. HL = address, C = mask, B = pixel count, E = error,
 ; IXH = dx, IXL = dy.
 line_xd:
-  ld a,(hl)
-  xor c
+  ld a,c
+.pen:
+  and &FF                       ; line_pen: &F0 pen 1, &0F pen 2, &FF pen 3
+  xor (hl)
   ld (hl),a
   ld a,e
   sub ixl
@@ -121,8 +150,10 @@ line_xd:
   jr .xstep
 
 line_xu:
-  ld a,(hl)
-  xor c
+  ld a,c
+.pen:
+  and &FF                       ; line_pen: &F0 pen 1, &0F pen 2, &FF pen 3
+  xor (hl)
   ld (hl),a
   ld a,e
   sub ixl
@@ -142,8 +173,10 @@ line_xu:
   jr .xstep
 
 line_yd:
-  ld a,(hl)
-  xor c
+  ld a,c
+.pen:
+  and &FF                       ; line_pen: &F0 pen 1, &0F pen 2, &FF pen 3
+  xor (hl)
   ld (hl),a
   ld a,e
   sub ixh
@@ -159,8 +192,10 @@ line_yd:
   ret
 
 line_yu:
-  ld a,(hl)
-  xor c
+  ld a,c
+.pen:
+  and &FF                       ; line_pen: &F0 pen 1, &0F pen 2, &FF pen 3
+  xor (hl)
   ld (hl),a
   ld a,e
   sub ixh

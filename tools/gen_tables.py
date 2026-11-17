@@ -176,6 +176,66 @@ def tri_pixels(w, h):
             | line_pixels(0, h - 1, w - 1, h - 1))
 
 
+MENU_HY = 200          # the horizon of the menus' vector world (game y)
+
+
+def menu_world(o):
+    """The vector world under the title and name entry screens: a floor
+    whose cross lines roll towards the viewer, radial floor lines, low
+    mountains, a striped sun on the horizon and a few stars."""
+    hy, cx = MENU_HY, 192
+    o.append(f"MENU_HY equ {hy}")
+    # floor cross lines: 16 phases x 7 lines (game y), perspective y = hy +
+    # 55 / (7.9 - depth)
+    o.append("MENU_FLOOR_LINES equ 7")
+    o.append("menu_floor:")
+    for p in range(16):
+        ys = [hy + round(55 / (7.9 - (k + p / 16))) for k in range(7)]
+        o.append("  db " + ",".join(str(min(y, 255)) for y in ys))
+    # radial lines from the horizon to the bottom edge, clipped to the screen
+    rad = []
+    for j in range(-9, 10):
+        x0, y0, x1, y1 = cx + j * 10, hy + 1, cx + j * 52, 255
+        if x1 < 0:
+            y1 = round(y0 + (y1 - y0) * (0 - x0) / (x1 - x0)); x1 = 0
+        if x1 > 383:
+            y1 = round(y0 + (y1 - y0) * (383 - x0) / (x1 - x0)); x1 = 383
+        if y1 > y0:
+            rad.append((x0, y0, x1, y1))
+    o.append(f"MENU_N_RADIALS equ {len(rad)}")
+    o.append("menu_radials:")
+    for x0, y0, x1, y1 in rad:
+        o.append(f"  dw {x0}\n  db {y0}\n  dw {x1}\n  db {y1}")
+    # mountains: low in the middle (under the centred text), higher outside
+    hs = [6, 16, 9, 20, 8, 5, 3, 6, 2, 5, 3, 7, 5, 4, 18, 10, 20, 8, 0]
+    xs = [round(i * 383 / (len(hs) - 1)) for i in range(len(hs))]
+    o.append(f"MENU_N_PEAKS equ {len(hs)}")
+    o.append("menu_peaks:")
+    for x, h in zip(xs, hs):
+        o.append(f"  dw {x}\n  db {hy - h}")
+    # the sun: stripes of a half disc, right of the centred text
+    sx, r = 336, 20
+    stripes = [(sx - round(math.sqrt(r * r - d * d)), sx + round(math.sqrt(r * r - d * d)), hy - d)
+               for d in range(2, r, 3)]
+    o.append(f"MENU_N_STRIPES equ {len(stripes)}")
+    o.append("menu_stripes:")
+    for x0, x1, y in stripes:
+        o.append(f"  dw {x0}, {x1}\n  db {y}")
+    # stars at the sides, clear of the text
+    import random
+    rng = random.Random(64)
+    stars = []
+    while len(stars) < 28:
+        x, y = rng.randint(4, 379), rng.randint(2, hy - 30)
+        if 56 <= x <= 328:
+            continue
+        stars.append((x, y))
+    o.append(f"MENU_N_STARS equ {len(stars)}")
+    o.append("menu_stars:")
+    for x, y in stars:
+        o.append(f"  dw {x}\n  db {y}")
+
+
 def main():
     out_path = sys.argv[1]
     o = []
@@ -313,6 +373,8 @@ def main():
 
     # Triangle bobbing: 64 steps of 12*sin
     tab("bob_tab", [round(12 * math.sin(2 * math.pi * i / 64)) for i in range(64)])
+
+    menu_world(o)
 
     with open(out_path, "w") as f:
         f.write("\n".join(o) + "\n")

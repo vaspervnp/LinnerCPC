@@ -2,7 +2,7 @@
 # cross them fast, jump into them, or turn into a ghost.
 name Water Lines
 start 50
-time 55
+time 135
 
 180 50  ground
 40  50  water       # a puddle: roll through it
@@ -10,11 +10,11 @@ time 55
 24  66  ground
 100 66  ground
 60  66  water
-60  66  ground
+180 66  ground
 40  46  ground
 50  46  ground
 80  46  water       # jump in from the edge
-40  46  ground
+160 46  ground
 30  30  ground
 80  30  ground
 40  30  gap
@@ -28,13 +28,13 @@ time 55
 30  40  ground
 60  40  ground
 96  40  water
-30  40  ground
+110 40  ground
 96  40  water
-60  40  ground
+100 40  ground
 20  56  ground
 80  56  ground
 48  56  gap
-80  56  ground
+255 56  ground
 30  36  ground
 40  36  ground
 110 36  water       # the long one: gear 3 and a jump, or the Rhombus
@@ -45,10 +45,10 @@ time 55
 # --- terraces -----------------------------------------------------------------
 16  48  ground
 40  48  water
-70  48  ground
+190 48  ground
 16  36  ground
 40  36  water
-70  36  ground
+230 36  ground
 16  24  ground
 60  24  water
 60  24  ground
@@ -60,15 +60,107 @@ time 55
 200 50  ground
 
 foe 310 rect
-foe 620 tri 120
+foe 740 tri 120
 # (dropped for the frame budget) foe 1080 rect
-foe 680 tri 100
-foe 1180 rect
-foe 1660 tri 110
-foe 1950 tri 100
-foe 2600 rect
-foe 2450 tri 120
-item 1240 phase 100
-item 2060 phase 90
-trap 1620 spikes
-trap 2840 spikes
+foe 1080 tri 100
+foe 1420 rect
+foe 2355 tri 110
+# foe 2070 tri 100   (dropped: frame budget at the new speeds)
+foe 3415 rect
+foe 3265 tri 120
+item 1480 phase 100
+item 2595 phase 90
+trap 1980 spikes
+trap 3655 spikes
+
+# === generated ===
+# tools/levelgen.py: 13600 px in all
+75  50  ground
+177 50  water  # gear 3
+255 50  ground
+foe 4336 rect
+255 50  ground
+foe 4589 tri 114
+99  50  ground
+221 50  water  # gear 3
+205 50  ground
+19  64  ground
+54  64  ground
+17  50  ground
+255 50  ground
+foe 5397 rect
+71  50  ground
+21  61  ground
+67  61  ground
+20  50  ground
+167 50  ground
+122 50  water  # gear 2
+255 50  ground
+item 6171 speed 66 4
+205 50  ground
+foe 6355 tri 92
+36  32  ground
+150 32  water
+24  50  ground
+177 50  ground
+42  50  water
+218 50  ground
+89  50  water  # gear 2
+214 50  ground
+46  50  water
+171 50  ground
+228 50  water  # gear 3
+255 50  ground
+foe 8040 rect
+198 50  ground
+130 50  water  # gear 2
+255 50  ground
+foe 8628 rect
+255 50  ground
+foe 8836 rect
+255 50  ground
+foe 9040 rect
+228 50  ground
+item 9226 phase 84 8
+213 50  water  # gear 3
+255 50  ground
+255 50  ground
+foe 9886 tri 100
+foe 10093 tri 135
+74  50  ground
+28  35  ground
+157 35  water
+20  50  ground
+255 50  ground
+foe 10623 rect
+255 50  ground
+foe 10880 tri 137
+85  50  ground
+24  65  ground
+87  65  ground
+22  50  ground
+255 50  ground
+item 11308 speed 68 8
+255 50  ground
+foe 11510 tri 133
+25  50  ground
+81  50  water  # gear 2
+255 50  ground
+foe 11998 tri 108
+106 50  ground
+45  50  water
+186 50  ground
+24  34  ground
+118 34  water
+17  50  ground
+195 50  ground
+53  50  water
+230 50  ground
+143 50  water  # gear 3
+255 50  ground
+foe 13350 tri 100
+76  50  ground
+36  70  ground
+47  70  ground
+29  50  ground
+238 50  ground

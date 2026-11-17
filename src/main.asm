@@ -4,13 +4,14 @@
 ;
 ; Memory map
 ;   &0038         IM 1 interrupt vector (JP int_handler)
-;   &0040-&6FFF   code, tables, level data, variables
+;   &0040-&6FFF   code, tables, level data
 ;   &7000-&73FF   terrain key ring (mirrored)
 ;   &7400-&757F   384 gap keys (the "old" ground of the first frame)
 ;   &7580-&75DF   scratch row: gap columns "draw" here
 ;   &7600-&76C5   object slots: 6 foes/items/traps, 3 shots
 ;   &7800-&7BFF   terrain run lengths (mirrored like the key ring)
-;   &7C00-&7FFF   stack
+;   &7C00-&7D7F   variables (cleared at start-up)
+;   &7D80-&7FFF   stack
 ;   &8000-&FFFF   the screen: Mode 1 overscan 384x272, single buffer
 ;   &C4E0-&C6DF   (inside it, never displayed) the disk sector buffer
 ;
@@ -89,17 +90,30 @@ main_loop:
   BORDER HW_BRIGHT_RED
   call render
   BORDER HW_BLUE
-  if TEST_FRAMES
-  call test_input
-  else
-  call pad_read
-  endif
-  call game_update
+  call game_step
+  ld hl,frame_late              ; the last loop overran and its picture was
+  ld a,(hl)                     ; dropped: the game moves on by one more
+  or a                          ; step, so it never slows down (at most one
+  jr z,.on_time                 ; step: a busy screen shows at 25 Hz)
+  ld (hl),0
+  ld a,(game_state)
+  cp GS_TITLE
+  call c,game_step
+.on_time:
   ld a,(game_state)             ; (the game may have just ended: the HUD
   cp GS_TITLE                   ; is gone with the rest of the screen)
   call c,hud_update
   BORDER HW_BLACK
   jp main_loop
+
+; One step of the game: input, then the logic.
+game_step:
+  if TEST_FRAMES
+  call test_input
+  else
+  call pad_read
+  endif
+  jp game_update
 
   if TEST_FRAMES
 ; Scripted input for headless runs: gear shifts at fixed loops, and an
@@ -121,7 +135,16 @@ test_input:
   cp GS_ENTRY
   jp z,test_entry
   ld c,0                        ; C = pad bits this loop
-  if TEST_SOAK != 2             ; (2: stay in gear 1, too slow for the water)
+  if TEST_SOAK == 2             ; (2: stay in gear 1, too slow for the water:
+  ld a,(game_state)             ; shift down every 16 loops)
+  cp GS_PLAY
+  jr nz,.auto
+  ld a,l
+  and 15
+  jr nz,.auto
+  ld c,1<<PAD_LEFT
+  endif
+  if 0                          ; (the gears go up by themselves now)
   ld a,(game_state)             ; playing: shift up every 16 loops while
   cp GS_PLAY                    ; the gear is below the limit (4, or 5 with
   jr nz,.auto                   ; Max Speed or TEST_GEAR5)
@@ -328,19 +351,28 @@ TEST_NAME_END equ 64
   include "text.asm"
   include "game.asm"
   include "hiscore.asm"
+  include "menu.asm"
+  include "particles.asm"
   include "disk.asm"
   include "tables.asm"
   include "levels.asm"
 
   assert (pix_mask and &FF) == 0
 
+code_end:
+  assert code_end <= RING
+  save "linner.bin",&0040,code_end-&0040
+
 ; ---------------------------------------------------------------------------
-; Variables (cleared at start-up)
+; Variables (cleared at start-up; not in linner.bin)
 ; ---------------------------------------------------------------------------
+VARS equ &7C00
+  org VARS
 vars_start:
 vsync_count:    db 0
 last_vsync:     db 0
 frame_drops:    db 0
+frame_late:     db 0            ; the last loop overran: one logic step to catch up
 keymap:         defs 10
 pad:            db 0
 pad_new:        db 0
@@ -364,6 +396,7 @@ g_old:          dw 0
 g_new:          dw 0
 ; Linner
 gear:           db 0
+gear_timer:     db 0            ; frames to the next automatic gear up
 max_gear:       db 0
 speed:          dw 0
 hero_cy_frac:   db 0            ; (hero_cy_frac) as a word = centre y in 8.8
@@ -408,6 +441,7 @@ hud_char:       db 0,0
 hud_box:        defs 5          ; the look each gear box has on screen
 spawn_ptr:      dw 0
 spawn_base:     dw 0
+spawn_x:        dw 0            ; world x of the record at spawn_ptr
 gu_min:         db 0
 ; the current level (a copy of its level_table entry)
 lv_segs:        dw 0
@@ -430,9 +464,14 @@ disk_track:     db 0
 disk_sector:    db 0
 fdc_res:        defs 8
 test_step:      db 0
+parts:          defs N_PARTS*P_SIZE   ; warp particles
+part_turn:      db 0
+part_step:      dw 0
+part_mi:        db 0
+part_busy:      db 0
+part_next:      db 0
+menu_phase:     db 0            ; the menu floor's roll, 0..15
 
 vars_end:
 
-code_end:
-  assert code_end <= RING
-  save "linner.bin",&0040,code_end-&0040
+  assert vars_end <= VARS+&180    ; the stack has the rest, down from &8000

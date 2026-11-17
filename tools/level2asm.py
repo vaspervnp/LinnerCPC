@@ -19,8 +19,9 @@ Text format, one segment per line ('#' starts a comment):
                             the level (it marches on the ground)
   foe X tri ALT             a Triangle bobbing around altitude ALT (same
                             scale as the ground, may go up to 240)
-  item X speed ALT          a Rhombus: Max Speed (gear 5 for 20 s)
-  item X phase ALT          a Rhombus: Phase Out (a ghost for 10 s)
+  item X speed ALT [SECS]   a Rhombus: Max Speed (gear 5 for SECS seconds,
+                            3..8, default 5)
+  item X phase ALT [SECS]   a Rhombus: Phase Out (a ghost for SECS seconds)
   trap X spikes             spikes on the Line
 
 The finish post stands at the end of the last segment; after it the Line
@@ -29,8 +30,7 @@ runs on flat (the level ends when Linner passes the post).
 ALT is the altitude of the ground line in pixels above its lowest position
 (0..126; screen row = 270 - ALT). TYPE is ground, water or gap. Slopes are
 limited to 45 degrees (|change in ALT| <= LEN) so the line drawn one pixel
-per column stays connected. The level loops, so the last segment must end
-at the start altitude.
+per column stays connected.
 
 Slope budget: the ground renderer only touches columns whose height changed
 since the last frame, at ~55 NOPs each (an unchanged column costs ~11). At
@@ -43,21 +43,26 @@ min(LEN, SCROLL_MAX x DY) columns, so short steep ramps between flats are
 cheap and long slopes or big height changes on one screen are not.
 --no-budget skips the check (benchmarks).
 
-Output, 5 bytes per segment, terminated by a 0 length:
-  db len, type          type: &00 ground, &80 water, &FF gap
-  dw slope              signed 8.8 change of the height key per pixel
-  db key_end            height key at the end (0 = highest, 126 = lowest)
-then LABEL_foes: (dw x, db type, db param) sorted by x, ended by dw &FFFF
-(1 Rectangle, 2 Triangle, 4/5 Rhombus, 6 spikes, 7 finish post; param = top
-row of a bobbing thing's centre), LABEL_length, LABEL_goal (the finish x)
-and LABEL_time (the time limit in BCD).
+Output (compact: the levels are long and memory is short), per segment:
+  db len, key           ground: key = height key at the end (0 = highest,
+                        126 = lowest); water: &80 + key
+  db len, &FF, key      a gap, and the height key after it
+terminated by a 0 length. The Z80 works out each slope when the segment
+starts: round((key_end - key_now) * 256 / len), as generate() does here.
+Then LABEL_foes, sorted by x: db dx, tb [, param] where dx is the distance
+from the previous record (records with tb = 0 are just steps of 255 px),
+tb = type (1 Rectangle, 2 Triangle, 4/5 Rhombus, 6 spikes, 7 finish post)
++ 16 x seconds (Rhombus), and param (Triangle, Rhombus only) = the top row
+of its bobbing centre; ended by db 0,&FF. Also LABEL_length, LABEL_goal
+(the finish x) and LABEL_time (the time limit in BCD).
 """
 import sys
 
 TYPES = {"ground": 0x00, "water": 0x80, "gap": 0xFF}
 MAX_ALT = 126
 SCREEN_W = 384
-SCROLL_MAX = 4          # pixels per frame at gear 5 (3.5 -> steps of 3 and 4)
+SCROLL_MAX = 5          # pixels per frame at gear 4 (4.81 -> steps of 4 and 5);
+                        # gear 5 (7 px) may drop a frame (the user allows it)
 MAX_CHANGED = 120       # ~6.5K NOPs of changed columns; objects need the rest
 
 
@@ -75,23 +80,28 @@ RHOMB_H = 17
 
 JUMP_VY = 5.0           # rows per frame up at take-off (hero.asm)
 GRAVITY = 0.25
-GEAR_SPEEDS = [1.0, 1.5, 2.0, 2.75, 3.5]
+GEAR_SPEEDS = [1.0, 1.875, 3.0, 4.8125, 7.0]   # hero.asm gear_speed
 GEAR_NORMAL = 4         # gear 5 needs the Max Speed Rhombus
 LAND_ROOM = 80          # px from a gap/water edge where jumps land
 JUMP_TOP = 72            # a full jump's top above the ground (50 + 2 r + slack)
 GAP_EDGE = 8            # Linner (r 10) still stands on an edge with his centre
                         # this far past it: a jump may be this much shorter
-FAST_PX = 3000          # how far a Max Speed Rhombus reaches (20 s at gear 5, minus slack)
+POWER_SECS = (3, 8)     # how long a Rhombus lasts, seconds
+POWER_DEFAULT = 5
 FONT = set(" !-.:0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
 
 def parse(src):
+    return parse_text(open(src).read(), src)
+
+
+def parse_text(text, src):
     start = None
     time = 60
     name = ""
     segs = []
     foes = []
-    for n, line in enumerate(open(src), 1):
+    for n, line in enumerate(text.splitlines(), 1):
         line = line.split("#")[0].split()
         if not line:
             continue
@@ -111,9 +121,12 @@ def parse(src):
             continue
         if line[0] == "item":
             x, kind, alt = int(line[1]), line[2], int(line[3])
+            secs = int(line[4]) if len(line) > 4 else POWER_DEFAULT
             if kind not in ITEMS:
                 sys.exit(f"{where}: unknown item {kind}")
-            foes.append((x, ITEMS[kind], 254 - alt - RHOMB_H // 2, where))
+            if not POWER_SECS[0] <= secs <= POWER_SECS[1]:
+                sys.exit(f"{where}: a Rhombus lasts {POWER_SECS[0]}..{POWER_SECS[1]} seconds")
+            foes.append((x, ITEMS[kind] | secs << 4, 254 - alt - RHOMB_H // 2, where))
             continue
         if line[0] == "trap":
             x, kind = int(line[1]), line[2]
@@ -156,7 +169,8 @@ def generate(start, segs):
     for ln, alt, typ, w in segs:
         if abs(alt - cur) > ln:
             sys.exit(f"{w}: slope steeper than 45 degrees")
-        slope = round((key(alt) - key(cur)) * 256 / ln)
+        d = key(alt) - key(cur)         # seg_load: |d| * 256 + len / 2, / len
+        slope = 0 if typ == "gap" else (1 if d >= 0 else -1) * ((abs(d) * 256 + ln // 2) // ln)
         out.append((ln, TYPES[typ], slope, key(alt)))
         for _ in range(ln):
             k = y >> 8
@@ -220,13 +234,29 @@ def water_reach(v, jump):
     return d
 
 
+def fast_reach(secs):
+    """How far past a Max Speed Rhombus Linner still lands a gear-5 jump:
+    ~47 frames from gear 4 up to 7 px/frame (~276 px, ACCEL 12/256), then
+    7 px/frame until the boost runs out, minus some slack for the landing."""
+    return 276 + 7.0 * (secs * 50 - 47) - 40
+
+
 def gaps(segs, start, foes, src):
     """The gear each gap needs (a full jump taken at the last moment must
     reach the far edge). Gear 5 needs a Max Speed Rhombus
-    not too far before the gap."""
+    not too far before the gap. Consecutive gap (or water) segments are
+    one stretch: a segment holds 255 px at most."""
     x, cur, need = 0, start, []
-    speed_items = [f[0] for f in foes if f[1] == ITEMS["speed"]]
-    for i, (ln, alt, typ, w) in enumerate(segs):
+    speed_items = [(f[0], f[1] >> 4) for f in foes if f[1] & 15 == ITEMS["speed"]]
+    i = 0
+    while i < len(segs):
+        ln, alt, typ, w = segs[i]
+        j = i + 1
+        if typ in ("water", "gap"):
+            while j < len(segs) and segs[j][2] == typ:
+                ln += segs[j][0]
+                alt = segs[j][1]
+                j += 1
         if typ == "water":
             gear = next((g for g, v in enumerate(GEAR_SPEEDS, 1)
                          if water_reach(v, True) >= ln), None)
@@ -234,7 +264,7 @@ def gaps(segs, start, foes, src):
                 sys.exit(f"{w}: {ln} px of water: too long to cross")
             need.append((x, ln, gear))
         if typ == "gap":
-            after = segs[i + 1][1] if i + 1 < len(segs) else alt
+            after = segs[j][1] if j < len(segs) else alt
             t = air_time(after - cur)
             gear = None
             if t:
@@ -244,11 +274,14 @@ def gaps(segs, start, foes, src):
                         break
             if gear is None:
                 sys.exit(f"{w}: a {ln} px gap rising {after - cur} rows can't be jumped")
-            if gear > GEAR_NORMAL and not any(0 < x - s <= FAST_PX for s in speed_items):
-                sys.exit(f"{w}: this gap needs gear 5: put a speed Rhombus before it")
+            if gear > GEAR_NORMAL and not any(0 < x + ln - s <= fast_reach(secs)
+                                              for s, secs in speed_items):
+                sys.exit(f"{w}: this gap needs gear 5: put a speed Rhombus before it, "
+                         f"close enough to land before the boost ends")
             need.append((x, ln, gear))
         x += ln
         cur = alt
+        i = j
     return need
 
 
@@ -281,6 +314,50 @@ def frame_cost(keys, foes):
     return worst
 
 
+# A Triangle drifts 1 px/frame towards Linner from the moment it appears
+# (288 px ahead of him), so they meet 288 / (v + 1) px before its x: for a
+# cruise in gear 3..4, with some slack.
+MEET = (int(288 / (GEAR_SPEEDS[3] + 1)) - 15, int(288 / (GEAR_SPEEDS[2] + 1)) + 15)
+
+
+def landings(keys, where, foes=()):
+    """A full jump over a gap or water, taken at the last moment in gear 4
+    (the cruise: the gears climb by themselves; gear 5 for a chasm only Max
+    Speed clears), must come down on dry ground, not in the next gap or
+    water."""
+    bad = lambda k: k == 0xFF or k & 0x80
+    v = GEAR_SPEEDS[GEAR_NORMAL - 1]
+    x = 1
+    while x < len(keys):
+        if bad(keys[x]) and not bad(keys[x - 1]):
+            start = x
+            while x < len(keys) and bad(keys[x]):
+                x += 1
+            rise = (keys[start - 1] & 127) - (keys[min(x, len(keys) - 1)] & 127)
+            t = air_time(rise)
+            if t:
+                w = x - start           # a chasm beyond gear 4: Max Speed's jump
+                vv = v if v * t >= w - GAP_EDGE else GEAR_SPEEDS[-1]
+                land = start - 4 + int(vv * t)
+                pre = (f"{where[start]}: a full jump in gear 4 over the stretch at "
+                       f"x={start} comes down at x={land}")
+                if land < len(keys) and any(bad(k) for k in keys[land - 10:land + 10]):
+                    sys.exit(pre + ", in a gap or water")
+                for fx, typ, param, _ in foes:
+                    typ &= 15
+                    if typ == TRAPS["spikes"] and land - 30 < fx < land + 20:
+                        sys.exit(pre + f", on the spikes at x={fx}")
+                    # a Rectangle marches ~25 px towards him before they meet
+                    if typ == FOES["rect"] and land - 30 < fx - 25 < land + 30:
+                        sys.exit(pre + f", on the Rectangle at x={fx}")
+                    if typ == FOES["tri"]:
+                        low = 254 - param - TRI_H // 2 - 12
+                        reach = MAX_ALT - (keys[start - 1] & 127) + JUMP_TOP
+                        if low < reach and fx - MEET[1] < land + 20 and fx - MEET[0] > start - 4:
+                            sys.exit(pre + f", the Triangle at x={fx} meets him in the air")
+        x += 1
+
+
 def fairness(keys, foes):
     """Spots where a foe makes a jump unfair (warnings, not errors).
     A Triangle drifts left at 1 px/frame from the moment it spawns (screen
@@ -294,8 +371,9 @@ def fairness(keys, foes):
     for x, typ, param, w in foes:
         if not 0 <= x < len(keys):
             continue                    # (reported elsewhere)
+        typ &= 15
         if typ == FOES["tri"]:
-            lo, hi = max(0, x - 125), max(0, x - 65)
+            lo, hi = max(0, x - MEET[1]), max(0, x - MEET[0])
             low = 254 - param - TRI_H // 2 - 12         # its lowest altitude
             ground = [MAX_ALT - (k & 127) for k in keys[lo:hi] if k != 0xFF]
             reach = max(ground, default=0) + JUMP_TOP   # a full jump's top
@@ -327,13 +405,14 @@ def fairness(keys, foes):
     return out
 
 
-def level(src, label, budget, o):
-    name, start, time, segs, foes = parse(src)
+def level(src, label, budget, o, text=None):
+    name, start, time, segs, foes = parse(src) if text is None else parse_text(text, src)
     keys, where, data = generate(start, segs)
     worst, at = check(keys, where)
     need = gaps(segs, start, foes, src)
+    landings(keys, where, foes)
     for x, typ, _, w in foes:       # Rectangles and spikes stand on ground
-        width = {FOES["rect"]: 16, TRAPS["spikes"]: 19}.get(typ)
+        width = {FOES["rect"]: 16, TRAPS["spikes"]: 19}.get(typ & 15)
         if width and any(k == 0xFF or k & 0x80 for k in keys[x:x + width]):
             sys.exit(f"{w}: x={x} puts it over a gap or water")
     for msg in fairness(keys, foes):
@@ -366,8 +445,14 @@ def level(src, label, budget, o):
           f"{label}_start_key equ {key(start)}",
           f"{label}_name: db \"{name}\",0",
           f"{label}:"]
+    size = 0
     for ln, typ, slope, kend in data:
-        o.append(f"  db {ln},&{typ:02X}\n  dw {slope & 0xFFFF}\n  db {kend}")
+        if typ == 0xFF:
+            o.append(f"  db {ln},&FF,{kend}")
+            size += 3
+        else:
+            o.append(f"  db {ln},{typ | kend}")
+            size += 2
     o.append("  db 0")
     o.append(f"; {len(data)} segments, {len(keys)} pixels")
     o.append(f"{label}_length equ {len(keys)}")
@@ -376,11 +461,24 @@ def level(src, label, budget, o):
     foes.append((len(keys) - 2, GOAL, 0, src))      # the finish post
     foes.sort()
     o.append(f"{label}_foes:")
+    last = 0
     for x, typ, param, w in foes:
         if not 0 <= x <= len(keys):
             sys.exit(f"{w}: foe outside the level (0..{len(keys) - 1})")
-        o.append(f"  dw {x}\n  db {typ},{param}")
-    o.append("  dw &FFFF")
+        while x - last > 255:
+            o.append("  db 255,0")
+            last += 255
+            size += 2
+        if typ & 15 in (FOES["tri"], ITEMS["speed"], ITEMS["phase"]):
+            o.append(f"  db {x - last},{typ},{param}")
+            size += 3
+        else:
+            o.append(f"  db {x - last},{typ}")
+            size += 2
+        last = x
+    o.append("  db 0,&FF")
+    o.append(f"; {size + 3 + len(name) + 1} bytes")
+    print(f"  {size + 3 + len(name) + 1} bytes of level data")
 
 
 def main():

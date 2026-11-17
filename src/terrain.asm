@@ -61,8 +61,10 @@ terrain_fill:
   pop de
   jr .lp
 
-; Load the segment at gen_ptr. Past the end marker the Line runs on flat
-; (the finish post stands at the end; the screen still needs ground).
+; Load the segment at gen_ptr (db len, key; a gap: db len, &FF, key). Past
+; the end marker the Line runs on flat (the finish post stands at the end;
+; the screen still needs ground). The slope is worked out here, once per
+; segment: round((key_end - key_now) * 256 / len), exactly as level2asm.py.
 seg_load:
   ld hl,(gen_ptr)
   ld a,(hl)
@@ -80,19 +82,61 @@ seg_load:
   ret
 .ok:
   ld (gen_len),a
+  ld c,a
   inc hl
   ld a,(hl)
-  ld (gen_type),a
   inc hl
-  ld e,(hl)
-  inc hl
-  ld d,(hl)
-  inc hl
-  ld (gen_slope),de
+  cp KEY_GAP
+  jr nz,.line
+  ld (gen_type),a               ; a gap: no slope, the height after it
   ld a,(hl)
+  inc hl
   ld (gen_end),a
-  inc hl
   ld (gen_ptr),hl
+  ld hl,0
+  ld (gen_slope),hl
+  ret
+.line:
+  ld (gen_ptr),hl
+  ld b,a
+  and &80                       ; ground or water
+  ld (gen_type),a
+  ld a,b
+  and &7F
+  ld (gen_end),a
+  ld hl,gen_y+1
+  sub (hl)                      ; A = rows to go (signed)
+  push af
+  jr nc,.abs
+  neg
+.abs:
+  ld h,a                        ; HL = |rows| * 256 + len / 2
+  ld a,c
+  srl a
+  ld l,a
+  xor a                         ; HL /= len (C)
+  ld b,16
+.div:
+  add hl,hl
+  rla
+  jr c,.sub
+  cp c
+  jr c,.next
+.sub:
+  sub c
+  inc l
+.next:
+  djnz .div
+  pop af
+  jr nc,.store
+  xor a                         ; going up: negative
+  sub l
+  ld l,a
+  sbc a,a
+  sub h
+  ld h,a
+.store:
+  ld (gen_slope),hl
   ret
 
 ; Emit the key for world column gen_wx and step the generator.

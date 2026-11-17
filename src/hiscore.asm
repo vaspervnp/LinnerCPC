@@ -13,12 +13,13 @@ HS_COUNT    equ 10
 HS_SIZE     equ 8               ; name (5 characters) + score (3 BCD bytes)
 HS_NAME     equ 5
 TITLE_LOCK  equ 25              ; frames before the title takes input
-HS_ROW_Y    equ 52              ; game y of the first table row
+HS_ROW_Y    equ 40              ; game y of the first table row
 HS_ROW_DY   equ 13
 HS_ROW_COL  equ 31              ; "10. ABCDE  001234": 17 characters
 NAME_Y      equ 120
 NAME_COL    equ 39              ; 5 letters, one cell apart
 CURSOR_Y    equ NAME_Y+10
+SAVE_Y      equ 178             ; "SAVING..." (above the horizon)
 
 hs_defaults:
   db "CIRCA",&00,&10,&00
@@ -196,20 +197,26 @@ screen_clear:
   ld (msg_cur),hl
   inc a
   ld (hero_hidden),a
+  call particles_init
   jp objects_init
 
 ; A = place to show highlighted (blinking), &FF for none.
 title_start:
   ld (title_hl),a
   call screen_clear
-  ld b,8
+  call menu_world               ; the vector world under the words
+  ld b,4
   ld de,txt_title
   call text_mid
-  ld hl,96                      ; the Line under the title
+  ld a,PEN1_MASK                ; the Line under the title
+  call line_pen
+  ld hl,96
   ld de,287
-  ld bc,22*256+22
+  ld bc,16*256+16
   call line_xor
-  ld b,32
+  ld a,PEN3_MASK
+  call line_pen
+  ld b,24
   ld de,txt_hiscores
   call text_mid
   xor a
@@ -221,13 +228,13 @@ title_start:
   cp HS_COUNT
   jr nz,.rows
   call title_press
-  ld b,206
+  ld b,164
   ld de,txt_help1
   call text_mid
-  ld b,218
+  ld b,174
   ld de,txt_help2
   call text_mid
-  ld b,230
+  ld b,184
   ld de,txt_help3
   call text_mid
   xor a
@@ -236,10 +243,11 @@ title_start:
   ld b,TITLE_LOCK
   call game_state_set
   call wait_frame
-  jp palette_set
+  ld hl,menu_palette
+  jp palette_hl
 
 title_press:
-  ld b,186
+  ld b,152
   ld de,txt_press
   jp text_mid
 
@@ -284,10 +292,10 @@ hs_row_xor:
   xor a
   ld (de),a
   pop af
-  ld c,a                        ; y = HS_ROW_Y + 13 * place
+  ld c,a                        ; y = HS_ROW_Y + 11 * place
+  add a,a
   add a,a
   add a,c
-  add a,a
   add a,a
   add a,c
   add a,HS_ROW_Y
@@ -319,6 +327,7 @@ bcd_str:
   ret
 
 title_update:
+  call menu_tick
   ld hl,title_tick
   inc (hl)
   ld a,(hl)
@@ -357,6 +366,7 @@ entry_start:
   call hiscore_rank
   ld (entry_rank),a
   call screen_clear
+  call menu_world
   ld b,40
   ld de,txt_new_hi
   call text_mid
@@ -369,10 +379,10 @@ entry_start:
   ld b,92
   ld de,txt_enter
   call text_mid
-  ld b,170
+  ld b,150
   ld de,txt_entry_help1
   call text_mid
-  ld b,182
+  ld b,162
   ld de,txt_entry_help2
   call text_mid
   ld hl,entry_name              ; "A    "
@@ -397,7 +407,8 @@ entry_start:
   ld b,0
   call game_state_set
   call wait_frame
-  jp palette_set
+  ld hl,menu_palette
+  jp palette_hl
 
 ; XOR the letter at entry_pos.
 entry_char_xor:
@@ -439,6 +450,7 @@ entry_set:
   jr entry_char_xor             ; the new one on
 
 entry_update:
+  call menu_tick
   ld ix,entry_keys              ; typed keys first
 .key:
   ld a,(ix+0)
@@ -572,15 +584,15 @@ entry_done:
   ld a,(disk_track)             ; no HISCORE.DAT found at boot: RAM only
   inc a
   jr z,.title
-  ld b,220
+  ld b,SAVE_Y
   ld de,txt_saving
   call text_mid
   call hiscore_save
   jr c,.saved
-  ld b,220                      ; write-protected, no disc...: say so
+  ld b,SAVE_Y                   ; write-protected, no disc...: say so
   ld de,txt_saving
   call text_mid
-  ld b,220
+  ld b,SAVE_Y
   ld de,txt_not_saved
   call text_mid
   ld b,100
@@ -652,8 +664,8 @@ txt_title:       db "L  I  N  N  E  R",0
 txt_hiscores:    db "HIGH SCORES",0
 txt_press:       db "PRESS FIRE TO PLAY",0
 txt_help1:       db "LEFT RIGHT: GEAR    UP DOWN: AIM",0
-txt_help2:       db "Z OR FIRE 1: SHOOT",0
-txt_help3:       db "SPACE OR FIRE 2: JUMP",0
+txt_help2:       db "LINNER SHOOTS BY HIMSELF",0
+txt_help3:       db "SPACE OR FIRE: JUMP",0
 txt_new_hi:      db "A NEW HIGH SCORE!",0
 txt_your_score:  db "SCORE 000000",0
 txt_enter:       db "ENTER YOUR NAME",0

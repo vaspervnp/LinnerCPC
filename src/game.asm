@@ -23,9 +23,8 @@ TEST_LEVEL equ 1                ; tests: start at another level
 READY_TIME  equ 90
 DONE_TIME   equ 100             ; after the bonus is counted
 OVER_TIME   equ 200
-FAST_TIME   equ 1000            ; Max Speed: 20 s of gear 5
-PHASE_TIME  equ 500             ; Phase Out: 10 s as a ghost
-PHASE_WARN  equ 100             ; the ghost flickers for the last 2 s
+PHASE_WARN  equ 50              ; the ghost flickers for its last second
+                                ; (each Rhombus lasts 3..8 s: see the level)
 MSG_ROW     equ 64              ; game y of the message line
 
 game_new:
@@ -54,6 +53,7 @@ level_setup:
   call linner_erase
   call linner_draw
   call objects_wipe
+  call particles_wipe
   ld a,(drawn_valid)
   or a
   call nz,ground_wipe
@@ -61,6 +61,7 @@ level_setup:
   call terrain_init
   call hero_init
   call objects_init
+  call particles_init
   ld hl,(lv_time)
   ld (time_left),hl
   ld a,50
@@ -97,6 +98,7 @@ level_setup:
   call wait_frame
   xor a
   ld (frame_drops),a            ; the set-up itself is allowed to take long
+  ld (frame_late),a
   jp palette_set
 
 ; Copy level_num's entry of level_table into lv_segs.. (same order).
@@ -275,16 +277,37 @@ score_add:
 ; ---------------------------------------------------------------------------
 ; Powerups
 ; ---------------------------------------------------------------------------
+; A = seconds -> HL = frames (x 50). Trashes DE.
+secs_frames:
+  ld l,a
+  ld h,0
+  add hl,hl                     ; 2
+  push hl
+  add hl,hl
+  add hl,hl
+  add hl,hl                     ; 16
+  ld d,h
+  ld e,l
+  add hl,hl                     ; 32
+  add hl,de                     ; 48
+  pop de
+  add hl,de                     ; 50
+  ret
+
+; A = seconds of Max Speed / Phase Out (from the Rhombus).
 powerup_fast:
-  ld hl,FAST_TIME
+  call secs_frames
   ld (hero_fast),hl
   ld a,GEARS
   ld (max_gear),a
+  ld (gear),a                   ; straight into gear 5
+  ld a,GEAR_TIME
+  ld (gear_timer),a
   ld a,&50
   jp score_add
 
 powerup_phase:
-  ld hl,PHASE_TIME
+  call secs_frames
   ld (hero_phase),hl
   ld a,&50
   jp score_add
@@ -319,7 +342,7 @@ powerups_tick:
   dec hl
   ld (hero_phase),hl
   ld de,ghost_tab
-  ld a,h                        ; the last 2 s: flicker as a warning
+  ld a,h                        ; the last second: flicker as a warning
   or a
   jr nz,.look
   ld a,l

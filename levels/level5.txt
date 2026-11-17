@@ -2,11 +2,11 @@
 # that only Max Speed clears, plateaus to land on.
 name Chasms
 start 40
-time 50
+time 95
 
 200 40  ground
 48  40  gap         # warm-up: gear 2
-120 40  ground
+240 40  ground
 30  60  ground
 100 60  ground
 72  60  gap         # gear 3
@@ -22,7 +22,8 @@ time 50
 40  50  ground
 80  50  ground
 64  50  gap
-100 50  ground      # a ledge between two gaps
+255 50  ground  # a ledge between two gaps
+40  50 ground   # (wider ledge: faster gears)
 64  50  gap
 160 50  ground
 
@@ -43,15 +44,109 @@ time 50
 40  40  ground
 220 40  ground
 
-foe 400  tri 110
-foe 660 rect
-foe 900  tri 100
-foe 1210 tri 90
-foe 1900 rect
-foe 1600 tri 110
-foe 2060 rect
-foe 2340 tri 120
-foe 2610 rect
-item 1780 speed 90
-trap 1160 spikes
-trap 2280 spikes
+foe 520  tri 110
+foe 780 rect
+foe 1020  tri 100
+foe 1410 tri 90
+foe 2215 rect
+foe 1995 tri 110
+foe 2375 rect
+foe 2655 tri 120
+foe 2925 rect
+item 2095 speed 90
+trap 1280 spikes
+trap 2595 spikes
+
+# === generated ===
+# tools/levelgen.py: 15200 px in all
+102 40  ground
+98  40  gap  # gear 3
+189 40  ground
+103 40  gap  # gear 3
+224 40  ground
+109 40  gap  # gear 3
+255 40  ground
+foe 4955 tri 115
+255 40  ground
+foe 5083 rect
+255 40  ground
+item 5289 phase 69 6
+foe 5423 rect
+255 40  ground
+foe 5642 rect
+102 40  ground
+34  57  ground
+213 57  ground
+foe 5953 rect
+25  40  ground
+104 40  ground
+24  56  ground
+188 56  ground
+foe 6311 rect
+24  40  ground
+151 40  ground
+100 40  gap  # gear 3
+255 40  ground
+item 6892 speed 52 7
+251 40  ground  # up to gear 5
+220 40  gap  # gear 5
+254 40  ground
+112 40  gap  # gear 3
+202 40  ground
+146 40  gap  # gear 4
+255 40  ground
+foe 8314 rect
+255 40  ground
+foe 8575 tri 109
+250 40  ground
+trap 8702 spikes
+114 40  gap  # gear 3
+255 40  ground
+trap 9207 spikes
+255 40  ground
+foe 9441 tri 81
+255 40  ground
+foe 9619 tri 123
+item 9751 speed 52 6
+255 40  ground  # up to gear 5
+41  40  ground
+242 40  gap  # gear 5
+255 40  ground
+126 40  ground
+foe 10594 tri 107
+43  40  water
+183 40  ground
+39  60  ground
+189 60  ground
+foe 11042 rect
+27  40  ground
+143 40  ground
+98  39  gap  # gear 3
+219 39  ground
+158 39  gap  # gear 4
+255 39  ground
+foe 12034 tri 69
+255 39  ground
+foe 12195 tri 121
+50  39  ground
+170 39  gap  # gear 4
+255 39  ground
+item 12719 speed 51 6
+255 39  ground  # up to gear 5
+1   39  ground
+255 39  gap  # gear 5
+9   39  gap
+255 39  ground
+178 39  ground
+foe 13569 tri 87
+168 39  gap  # gear 4
+255 39  ground
+trap 14104 spikes
+137 39  ground
+102 41  gap  # gear 3
+200 41  ground
+90  41  gap  # gear 3
+218 41  ground
+135 41  gap  # gear 4
+255 41  ground
+17  41  ground  # the finish post

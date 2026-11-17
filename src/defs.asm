@@ -28,6 +28,7 @@ HW_BLACK        equ &14
 HW_BRIGHT_GREEN equ &12
 HW_SKY_BLUE     equ &17
 HW_BRIGHT_WHITE equ &0B
+HW_BRIGHT_MAGENTA equ &0D
 HW_BRIGHT_RED   equ &0C
 HW_BRIGHT_YELLOW equ &0A
 HW_ORANGE       equ &0E
@@ -44,7 +45,6 @@ KEY_UP          equ &00
 KEY_RIGHT       equ &01
 KEY_DOWN        equ &02
 KEY_LEFT        equ &10
-KEY_Z           equ &87
 KEY_SPACE       equ &57
 KEY_ESC         equ &82
 JOY_UP          equ &90
