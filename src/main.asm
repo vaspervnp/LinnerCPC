@@ -64,6 +64,8 @@ start:
   ld bc,vars_end-vars_start-1
   ld (hl),0
   ldir
+  ld a,DIFF_DEFAULT
+  ld (difficulty),a
   call video_init               ; overscan, black palette, screen cleared
   call objects_init
   ld bc,FDC_MOTOR               ; (the loader left the drive motor off)
@@ -366,6 +368,13 @@ code_end:
 ; ---------------------------------------------------------------------------
 ; Variables (cleared at start-up; not in linner.bin)
 ; ---------------------------------------------------------------------------
+  ifndef DIFF_DEFAULT
+  if TEST_FRAMES
+DIFF_DEFAULT equ 2              ; tests: hard, the speeds the levels are tuned at
+  else
+DIFF_DEFAULT equ 1              ; medium
+  endif
+  endif
 VARS equ &7C00
   org VARS
 vars_start:
@@ -403,9 +412,11 @@ hero_cy_frac:   db 0            ; (hero_cy_frac) as a word = centre y in 8.8
 hero_cy:        db 0
 hero_vy:        dw 0
 hero_grounded:  db 0
+hero_jumps:     db 0            ; 0 none, 1 jumping, 2 jumped again
 hero_state:     db 0
 hero_timer:     db 0
 hero_hidden:    db 0
+hero_soggy_f:   db 0            ; (fraction: hero_soggy_f as a word is 8.8)
 hero_soggy:     db 0
 hero_on_water:  db 0
 hero_angle:     dw 0
@@ -448,9 +459,36 @@ gu_min:         db 0
 lv_segs:        dw 0
 lv_foes:        dw 0
 lv_goal:        dw 0
-lv_time:        dw 0
+lv_times:       dw 0,0,0        ; easy, medium, hard (BCD)
 lv_name:        dw 0
-lv_key:         db 0,0
+lv_ways:        dw 0
+lv_key:         db 0
+lv_nways:       db 0
+; waypoints: a lost life restarts at the last one passed
+wp_last:        db 0            ; 1.. = that waypoint, 0 = the level's start
+wp_next:        db 0            ; index of the next post to pass
+wp_time:        dw 0            ; time left when the last one was passed
+difficulty:     db 0            ; 0 easy, 1 medium, 2 hard
+; the world's speed for this difficulty (a copy of a diff_table entry)
+phys:
+p_gears:        defs 10         ; gear 1..5 target speeds
+p_accel:        dw 0
+p_decel:        dw 0
+p_gravity:      dw 0
+p_jump_v:       dw 0
+p_jump_v2:      dw 0
+p_jump_cut:     dw 0
+p_vy_max:       dw 0
+p_water_drag:   dw 0
+p_water_min:    dw 0
+p_rect:         dw 0
+p_tri:          dw 0
+p_soggy:        dw 0            ; soggy meter per frame on water (8.8)
+p_gear_time:    db 0            ; frames between automatic gear-ups
+p_fps:          db 0            ; frames per powerup second
+p_bonus:        db 0            ; points (BCD) per second left at the finish
+phys_end:
+  assert phys_end-phys == DIFF_SIZE
 msg_buf:        defs 28
 ; high scores and the disk
 hiscores:       defs HS_COUNT*HS_SIZE
@@ -460,7 +498,7 @@ entry_rank:     db 0
 entry_pos:      db 0
 entry_name:     defs 5
 key_prev:       defs 10
-hs_row:         defs 18
+hs_row:         defs 20         ; "10. ABCDE  001234 H",0
 disk_track:     db 0
 disk_sector:    db 0
 fdc_res:        defs 8
@@ -475,4 +513,4 @@ menu_phase:     db 0            ; the menu floor's roll, 0..15
 
 vars_end:
 
-  assert vars_end <= VARS+&180    ; the stack has the rest, down from &8000
+  assert vars_end <= VARS+&200    ; the stack has the rest (512 bytes), down from &8000

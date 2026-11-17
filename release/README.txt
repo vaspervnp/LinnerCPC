@@ -24,6 +24,10 @@ CONTROLS                      keyboard              joystick
 Shift gear up / down          RIGHT / LEFT          right / left
 Aim the ray up / down         UP / DOWN             up / down
 Jump (hold for a full jump)   SPACE                 fire (either)
+Difficulty (title screen)     LEFT / RIGHT          left / right
+
+EASY and MEDIUM run the whole world at 60% and 80% of HARD's speed: every
+jump still lands in the same place, the clock and the powerups last longer.
 
 Linner shoots by himself, evenly spaced, from the aim tick on his rim, up
 to 3 at once (about two shots a second aiming ahead). The ray aims in 10-degree steps from straight ahead
@@ -40,7 +44,8 @@ THE RULES
   Every level and life starts in gear 1.
 * Wide gaps need speed: a full jump lasts 40 frames, so it carries Linner
   40 px in gear 1, 75 in gear 2, 120 in gear 3, 192 in gear 4, 280 in 5.
-  Falling into a gap costs a life.
+  Press jump again in the air for a second jump at half the speed (half
+  the distance), once per jump. Falling into a gap costs a life.
 * Water Lines slow Linner down and soak him (the blue bar at the top); at
   full soak he sinks. Cross them fast, jump into them late, or jump them.
 * Touching a Rectangle, a Triangle or spikes costs a life.
@@ -48,8 +53,9 @@ THE RULES
 * Phase Out Rhombus: 3 to 8 seconds as a ghost - foes, spikes and water
   can't hurt him (gaps still can). It flickers in its last second.
 * Every level has a clock. Each second left at the finish post is worth
-  10 points; running out of time costs a life.
-* 3 lives. Losing one restarts the level.
+  10 points (8 on medium, 6 on easy); running out of time costs a life.
+* 3 lives. Losing one restarts the level at the last waypoint passed (3 to
+  5 small flagged posts per level), with the time you had there.
 * Six levels, each longer than the last (12,000 to 17,000 pixels): The Flat Line, Swells, Water Lines, The Bureau,
   Chasms, End of the Line.
 
@@ -58,7 +64,8 @@ HIGH SCORES
 -----------
 A Top 10 score lets you etch a 5-character name into the disc: UP/DOWN
 picks a letter, RIGHT or fire moves on, LEFT goes back, fire on the last
-letter is done - or just type it (DEL deletes, RETURN finishes). The
+letter is done - or just type it (DEL deletes, RETURN finishes). Each
+entry shows the difficulty it was played on (E, M, H). The
 table is saved in HISCORE.DAT on the game disc, so keep the disc
 writable. Emulators: Caprice32 asks to save the changed disc when you quit
 (or use "Save dsk A" in its F1 menu).

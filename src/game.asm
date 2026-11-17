@@ -28,6 +28,25 @@ PHASE_WARN  equ 50              ; the ghost flickers for its last second
 MSG_ROW     equ 64              ; game y of the message line
 
 game_new:
+  ld a,(difficulty)             ; the world's speed for this game
+  ld l,a
+  ld h,0
+  ld d,h
+  ld e,l
+  add hl,hl                     ; * DIFF_SIZE (37 = 32 + 4 + 1)
+  add hl,hl
+  ld b,h
+  ld c,l
+  add hl,hl
+  add hl,hl
+  add hl,hl
+  add hl,bc
+  add hl,de
+  ld de,diff_table
+  add hl,de
+  ld de,phys
+  ld bc,DIFF_SIZE
+  ldir
   xor a
   ld (score),a
   ld (score+1),a
@@ -41,6 +60,11 @@ game_new:
   ld (lives),a
   ld a,TEST_LEVEL
   ld (level_num),a
+  ; fall through
+; A new level: from its start.
+level_begin:
+  xor a
+  ld (wp_last),a
   ; fall through
 
 ; (Re)start the current level: wipe what is on screen, set everything up,
@@ -58,12 +82,63 @@ level_setup:
   or a
   call nz,ground_wipe
   call level_load
+  ld a,(wp_last)
+  or a
+  jr z,.start
+  dec a                         ; restart at the last waypoint passed
+  call wp_addr
+  push hl
+  ld e,(hl)                     ; segment, key, scroll x
+  inc hl
+  ld d,(hl)
+  inc hl
+  ld a,(hl)
+  inc hl
+  ld c,(hl)
+  inc hl
+  ld b,(hl)
+  ex de,hl
+  ld d,b
+  ld e,c
+  call terrain_start
+  call hero_init
+  call objects_clear
+  pop hl
+  ld de,5                       ; foe record, the x before it
+  add hl,de
+  ld e,(hl)
+  inc hl
+  ld d,(hl)
+  inc hl
+  ld c,(hl)
+  inc hl
+  ld b,(hl)
+  ex de,hl
+  ld d,b
+  ld e,c
+  call objects_start
+  ld a,(wp_last)                ; its post is behind him now
+  ld (wp_next),a
+  ld hl,(wp_time)               ; the time he had there
+  jr .timed
+.start:
+  ld (wp_next),a
   call terrain_init
   call hero_init
   call objects_init
-  call particles_init
-  ld hl,(lv_time)
+  ld a,(difficulty)             ; the level's time for this difficulty
+  add a,a
+  ld e,a
+  ld d,0
+  ld hl,lv_times
+  add hl,de
+  ld a,(hl)
+  inc hl
+  ld h,(hl)
+  ld l,a
+.timed:
   ld (time_left),hl
+  call particles_init
   ld a,50
   ld (time_tick),a
   call hud_draw
@@ -83,6 +158,18 @@ level_setup:
   ld (de),a
   inc de
   ld hl,(lv_name)
+  ld a,(wp_last)
+  or a
+  jr z,.name
+  ld hl,txt_waypoint            ; "LEVEL n: WAYPOINT k"
+  ld bc,9
+  ldir
+  add a,"0"
+  ld (de),a
+  inc de
+  xor a
+  ld (de),a
+  jr .named
 .name:
   ld a,(hl)
   ld (de),a
@@ -90,6 +177,7 @@ level_setup:
   inc de
   or a
   jr nz,.name
+.named:
   ld de,msg_buf
   call msg_show
   ld a,GS_READY
@@ -101,16 +189,34 @@ level_setup:
   ld (frame_late),a
   jp palette_set
 
+; A = waypoint index -> HL = its record in lv_ways (WAY_SIZE = 11 bytes).
+wp_addr:
+  ld l,a
+  ld h,0
+  ld d,h
+  ld e,l
+  add hl,hl
+  ld b,h
+  ld c,l                        ; 2
+  add hl,hl
+  add hl,hl                     ; 8
+  add hl,bc
+  add hl,de                     ; 11
+  ld de,(lv_ways)
+  add hl,de
+  ret
+
 ; Copy level_num's entry of level_table into lv_segs.. (same order).
 level_load:
   ld a,(level_num)
   dec a
   ld l,a
   ld h,0
-  add hl,hl                     ; * LEVEL_ENTRY (12)
-  add hl,hl
+  add hl,hl                     ; * LEVEL_ENTRY (18)
   ld d,h
   ld e,l
+  add hl,hl
+  add hl,hl
   add hl,hl
   add hl,de
   ld de,level_table
@@ -160,6 +266,29 @@ game_play:
   ld a,(hero_state)             ; the clock stops once Linner is lost
   or a
   ret nz
+  ld a,(wp_next)                ; past the next waypoint's post?
+  ld hl,lv_nways
+  cp (hl)
+  jr nc,.no_way
+  call wp_addr
+  ld de,9
+  add hl,de
+  ld e,(hl)
+  inc hl
+  ld d,(hl)
+  ld hl,(scroll_wx)
+  ld bc,HERO_X
+  add hl,bc
+  or a
+  sbc hl,de
+  jr c,.no_way
+  ld hl,wp_next                 ; restarts begin here now, with this time
+  inc (hl)
+  ld a,(hl)
+  ld (wp_last),a
+  ld hl,(time_left)
+  ld (wp_time),hl
+.no_way:
   ld hl,(scroll_wx)             ; past the finish post?
   ld de,HERO_X
   add hl,de
@@ -216,8 +345,8 @@ game_complete:
   daa
   ld h,a
   ld (time_left),hl
-  ld a,&10
-  jp score_add
+  ld a,(p_bonus)                ; 10 points a second on hard (fewer when
+  jp score_add                  ; the clock is longer)
 .counted:
   ld hl,state_timer
   dec (hl)
@@ -227,7 +356,7 @@ game_complete:
   cp LEVEL_COUNT
   jr nc,game_won
   inc (hl)
-  jp level_setup
+  jp level_begin
 
 ; Past the last finish post: the game is won (then the table, as after a
 ; game over).
@@ -277,21 +406,22 @@ score_add:
 ; ---------------------------------------------------------------------------
 ; Powerups
 ; ---------------------------------------------------------------------------
-; A = seconds -> HL = frames (x 50). Trashes DE.
+; A = seconds -> HL = frames (x p_fps: 50 on hard, more when the world
+; runs slower). Trashes A, B, DE.
 secs_frames:
-  ld l,a
-  ld h,0
-  add hl,hl                     ; 2
-  push hl
+  ld e,a
+  ld d,0
+  ld h,d
+  ld l,d
+  ld a,(p_fps)
+  ld b,8
+.mul:
   add hl,hl
-  add hl,hl
-  add hl,hl                     ; 16
-  ld d,h
-  ld e,l
-  add hl,hl                     ; 32
-  add hl,de                     ; 48
-  pop de
-  add hl,de                     ; 50
+  rla
+  jr nc,.skip
+  add hl,de
+.skip:
+  djnz .mul
   ret
 
 ; A = seconds of Max Speed / Phase Out (from the Rhombus).
@@ -301,7 +431,7 @@ powerup_fast:
   ld a,GEARS
   ld (max_gear),a
   ld (gear),a                   ; straight into gear 5
-  ld a,GEAR_TIME
+  ld a,(p_gear_time)
   ld (gear_timer),a
   ld a,&50
   jp score_add
@@ -392,6 +522,7 @@ msg_hide:
   ld (msg_cur),hl
   ret
 
+txt_waypoint: db "WAYPOINT "
 txt_ready:    db "LEVEL "
 txt_won:      db "THE LINE IS YOURS!",0
 txt_complete: db "LEVEL COMPLETE!",0

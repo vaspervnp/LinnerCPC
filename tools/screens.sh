@@ -16,7 +16,7 @@ mkdir -p "$OUT" "$B"
 
 # name  frames  defines
 SHOTS=(
-  "title     20   "
+  "title     20   -DDIFF_DEFAULT=1"
   "ready     105  "
   "level1    300  "
   "swells    520  -DTEST_LEVEL=2"
@@ -25,7 +25,7 @@ SHOTS=(
   "ghost     480  -DTEST_LEVEL=6 -DTEST_GHOST=1 -DTEST_GEAR5=1"
   "entry     1600 -DTEST_HISCORE=1 -DTEST_SOAK=2"
   "newhigh   1640 -DTEST_HISCORE=1 -DTEST_SOAK=2"
-  "chasm     780  -DTEST_LEVEL=5 -DTEST_GEAR5=1"
+  "chasm     610  -DTEST_LEVEL=5 -DTEST_GEAR5=1"
 )
 
 shot() {

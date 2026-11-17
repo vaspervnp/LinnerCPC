@@ -54,6 +54,22 @@ touch the disc, so high scores aren't saved.
 
 ![The loading screen](screenshots/loading.png)
 
+## Difficulty
+
+On the title screen, LEFT and RIGHT choose the difficulty: **EASY**,
+**MEDIUM** (the default) or **HARD**. It sets the speed of the whole world:
+
+| | Speed | Clock |
+|---|---|---|
+| Easy | 60% | 1.67 x |
+| Medium | 80% | 1.25 x |
+| Hard | 100% | as listed |
+
+Linner, his jumps, the foes and the water all slow down together, so every
+jump lands exactly where it would on hard: there is just more time to see
+what is coming. The clock and the powerups last longer to match, and each
+second left at the finish is worth a little less (see the score table).
+
 ## Controls
 
 | Action | Keyboard | Joystick |
@@ -114,6 +130,12 @@ drops back to gear 4.
 Press SPACE (or fire) to jump. **Hold it** for a full jump: 50 rows high and
 40 frames long. Release it early for a shorter hop. How far a jump carries
 Linner depends on the gear (see the table above).
+
+**Second jump.** Press the button again while Linner is in the air from a
+jump and he jumps once more from where he is, at half the speed: about
+12 rows higher and 20 frames long, half the distance of a full jump. It
+works once per jump, and not when he rolls off a ledge. Use it to stretch
+a jump that is coming down short, or to hop over a foe on the way down.
 
 Linner lands only when he comes down onto the ground from above. If he
 falls below the edge of a ledge, he keeps falling. When the ground drops
@@ -197,17 +219,25 @@ Both end when you lose a life.
 | Rectangle | 10 |
 | Triangle | 15 |
 | Rhombus | 50 |
-| Each second left at the finish post | 10 |
+| Each second left at the finish post | 10 (hard), 8 (medium), 6 (easy) |
 
 Each level has a clock (**T** in the status bar). When Linner rolls past
 the **finish post**, the seconds left are counted into your score and the
 next level begins. If the clock runs out, you lose a life.
 
-You start with **3 lives**. Losing one restarts the level from its
-beginning (the score you made stays). After the last life the game is
-over. Clear the sixth level and The Line is yours.
+You start with **3 lives**. After the last life the game is over. Clear
+the sixth level and The Line is yours.
+
+**Waypoints.** Each level has 3 to 5 waypoints, more on the longer
+levels: short posts with a small flag standing on The Line. Losing a life
+restarts the level at the last waypoint you passed ("LEVEL n: WAYPOINT k"),
+with the time you had when you passed it; before the first one, from the
+level's beginning. The score you made stays. Linner restarts in gear 1,
+and the foes just ahead of the waypoint are gone.
 
 ## The levels
+
+Times are for hard (easy and medium get more, see Difficulty).
 
 | # | Name | Length | Time | What's waiting |
 |---|---|---|---|---|
@@ -236,7 +266,8 @@ Or simply type the name on the keyboard: DEL deletes, RETURN or ENTER
 finishes. The table is then written to the file HISCORE.DAT on the disc.
 If the disc can't be written (write-protected, or no disc), the game says
 "COULD NOT SAVE THE TABLE" and keeps the scores until you switch off.
-With equal scores, the older entry stays above.
+With equal scores, the older entry stays above. The letter after each
+score is the difficulty it was played on: E, M or H.
 
 | | |
 |:---:|:---:|

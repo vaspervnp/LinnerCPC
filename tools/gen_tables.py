@@ -85,6 +85,7 @@ FONT = {
     "W": [0x3F, 0x40, 0x38, 0x40, 0x3F], "X": [0x63, 0x14, 0x08, 0x14, 0x63],
     "Y": [0x07, 0x08, 0x70, 0x08, 0x07], "Z": [0x61, 0x51, 0x49, 0x45, 0x43],
     "@": [0x1C, 0x22, 0x41, 0x22, 0x1C],     # a little Linner (lives)
+    "<": [0x08, 0x14, 0x22, 0x41, 0x00], ">": [0x00, 0x41, 0x22, 0x14, 0x08],
 }
 
 
@@ -236,6 +237,28 @@ def menu_world(o):
         o.append(f"  dw {x}\n  db {y}")
 
 
+DIFFICULTY = (0.6, 0.8, 1.0)    # easy, medium, hard (level2asm.py too)
+
+
+def diff_table(o):
+    """Per difficulty, the world's speed: everything that moves is scaled by
+    f and every acceleration by f * f, so each jump, run-up and fall covers
+    the same ground as on hard, only slower; frame counts (gear-up time,
+    powerup seconds) grow by 1 / f. src/main.asm phys mirrors the layout."""
+    o.append("diff_table:")
+    for f in DIFFICULTY:
+        w = lambda v: round(v) & 0xFFFF
+        vals = [w(g * f) for g in (0x100, 0x1E0, 0x300, 0x4D0, 0x700)]   # gears
+        vals += [w(12 * f * f), w(24 * f * f), w(64 * f * f)]   # accel, decel, gravity
+        vals += [w(-1280 * f), w(-640 * f), w(-512 * f)]        # jump, 2nd jump, cut
+        vals += [w(1536 * f), w(8 * f * f), w(128 * f)]         # vy max, water drag, min
+        vals += [w(-128 * f), w(-256 * f), w(256 * f)]          # Rectangle, Triangle, soggy
+        o.append("  dw " + ",".join(f"&{v:04X}" for v in vals))
+        bonus = round(10 * f)                                   # points per second left
+        o.append(f"  db {round(150 / f)},{round(50 / f)},&{bonus // 10}{bonus % 10}")
+    o.append("DIFF_SIZE equ 37")
+
+
 def main():
     out_path = sys.argv[1]
     o = []
@@ -352,9 +375,8 @@ def main():
     for k in range(3):
         spikes |= line_pixels(6 * k, 7, 6 * k + 3, 0) | line_pixels(6 * k + 3, 0, 6 * k + 6, 7)
     sprite(o, "spike", spikes | line_pixels(0, 7, 18, 7))
-    post = line_pixels(0, 0, 0, 47) | line_pixels(1, 0, 1, 47)
-    flag = line_pixels(2, 0, 13, 5) | line_pixels(13, 5, 2, 10)
-    sprite(o, "goal", post | flag)
+    # (the finish and waypoint posts are drawn by objects.asm post_xor)
+    diff_table(o)
     font_tables(o)
 
     # Aiming: 19 angles, 0..180 degrees in 10 degree steps, from straight

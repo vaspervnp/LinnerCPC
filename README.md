@@ -58,7 +58,8 @@ Linner shoots by himself; you choose where he aims.
   speed) is locked until you pick up the *Max Speed* Rhombus. LEFT and
   RIGHT shift by hand.
 - **Gaps need speed.** A full jump carries Linner 40 px in gear 1 and
-  280 px in gear 5. Falling into a gap costs a life.
+  280 px in gear 5; press jump again in the air for a second, half-strength
+  jump. Falling into a gap costs a life.
 - **Water Lines** slow Linner down and soak him. When the soggy bar is
   full, he sinks.
 - **Rectangles, Triangles and spikes** take a life on contact. Linner's
@@ -67,9 +68,14 @@ Linner shoots by himself; you choose where he aims.
 - **Rhombus powerups**, 3 to 8 seconds each: *Max Speed* opens gear 5,
   *Phase Out* turns Linner into a ghost that nothing but gaps can hurt.
 - **The clock:** every level has a time limit. Each second left at the
-  finish post is worth 10 points.
-- You have **3 lives**. A Top 10 score lets you enter a 5-character name,
-  which is saved on the disc.
+  finish post is worth 10 points (8 on medium, 6 on easy).
+- You have **3 lives**. Each level has 3 to 5 **waypoints**: a lost life
+  restarts at the last one you passed.
+- **Difficulty** (LEFT / RIGHT on the title): easy and medium run the whole
+  world at 60% and 80% of hard's speed; every jump still lands in the same
+  place, and the clock is longer to match.
+- A Top 10 score lets you enter a 5-character name, which is saved on the
+  disc with the difficulty's letter (E, M, H).
 
 ### The levels
 

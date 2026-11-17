@@ -13,9 +13,9 @@ HS_COUNT    equ 10
 HS_SIZE     equ 8               ; name (5 characters) + score (3 BCD bytes)
 HS_NAME     equ 5
 TITLE_LOCK  equ 25              ; frames before the title takes input
-HS_ROW_Y    equ 40              ; game y of the first table row
+HS_ROW_Y    equ 36              ; game y of the first table row (10 apart)
 HS_ROW_DY   equ 13
-HS_ROW_COL  equ 31              ; "10. ABCDE  001234": 17 characters
+HS_ROW_COL  equ 29              ; "10. ABCDE  001234 H": 19 characters
 NAME_Y      equ 120
 NAME_COL    equ 39              ; 5 letters, one cell apart
 CURSOR_Y    equ NAME_Y+10
@@ -160,6 +160,28 @@ hiscore_insert:
   ld hl,score
   ld c,3
   ldir
+  ; fall through
+; Mark the new entry with the difficulty: 2 - difficulty (so 0 = hard, as
+; every table saved before there were difficulties) in bit 7 of its first
+; two letters.
+hs_mark:
+  ld a,(entry_rank)
+  call hs_entry
+  ld a,(difficulty)
+  cpl
+  add a,3
+  ld c,a
+  rrca
+  and &80
+  or (hl)
+  ld (hl),a
+  inc hl
+  ld a,c
+  rrca
+  rrca
+  and &80
+  or (hl)
+  ld (hl),a
   ret
 
 ; A = place: HL -> its entry. Trashes A only.
@@ -228,6 +250,7 @@ title_start:
   cp HS_COUNT
   jr nz,.rows
   call title_press
+  call title_diff
   ld b,164
   ld de,txt_help1
   call text_mid
@@ -247,8 +270,26 @@ title_start:
   jp palette_hl
 
 title_press:
-  ld b,152
+  ld b,140
   ld de,txt_press
+  jp text_mid
+
+; XOR "DIFFICULTY  < MEDIUM >" (LEFT / RIGHT change it on the title).
+title_diff:
+  ld a,(difficulty)
+  ld l,a
+  add a,a
+  add a,l
+  add a,a                       ; * 6
+  ld l,a
+  ld h,0
+  ld de,txt_diffs
+  add hl,de
+  ld de,txt_diff+14
+  ld bc,6
+  ldir
+  ld b,152
+  ld de,txt_diff
   jp text_mid
 
 ; A = place: XOR its row of the table, "10. ABCDE  001234".
@@ -283,21 +324,44 @@ hs_row_xor:
   call hs_entry
   ld bc,HS_NAME
   ldir
+  push hl                       ; the difficulty rides in bit 7 of the
+  ld hl,hs_row+4                ; first two letters (hs_mark)
+  ld b,2
+.mark:
+  rl (hl)
+  rr c
+  srl (hl)
+  inc hl
+  djnz .mark
+  ld a,c
+  rlca
+  rlca
+  and 3
+  ld c,a                        ; C = 0 hard, 1 medium, 2 easy
+  pop hl
   ld a," "
   ld (de),a
   inc de
   ld (de),a
   inc de
   call bcd_str                  ; HL -> the score
+  ld a," "
+  ld (de),a
+  inc de
+  ld hl,txt_marks
+  ld b,0
+  add hl,bc
+  ld a,(hl)
+  ld (de),a
+  inc de
   xor a
   ld (de),a
   pop af
-  ld c,a                        ; y = HS_ROW_Y + 11 * place
+  ld c,a                        ; y = HS_ROW_Y + 10 * place
   add a,a
   add a,a
   add a,c
   add a,a
-  add a,c
   add a,HS_ROW_Y
   ld b,a
   ld a,HS_ROW_COL
@@ -350,6 +414,28 @@ title_update:
   ret
 .input:
   ld a,(pad_new)
+  ld c,a
+  and 1<<PAD_LEFT or 1<<PAD_RIGHT
+  jr z,.start
+  call title_diff               ; off with the old one
+  ld a,(pad_new)
+  ld c,a
+  ld hl,difficulty
+  ld a,(hl)
+  bit PAD_RIGHT,c
+  jr z,.easier
+  cp 2
+  jr nc,.show
+  inc (hl)
+  jr .show
+.easier:
+  or a
+  jr z,.show
+  dec (hl)
+.show:
+  jp title_diff
+.start:
+  ld a,c
   and 1<<PAD_FIRE or 1<<PAD_JUMP
   ret z
   call screen_clear
@@ -663,6 +749,9 @@ CYCLE_LEN equ $-entry_cycle
 txt_title:       db "L  I  N  N  E  R",0
 txt_hiscores:    db "HIGH SCORES",0
 txt_press:       db "PRESS FIRE TO PLAY",0
+txt_diff:        db "DIFFICULTY  < MEDIUM >",0
+txt_diffs:       db " EASY ","MEDIUM"," HARD "
+txt_marks:       db "HME"
 txt_help1:       db "LEFT RIGHT: GEAR    UP DOWN: AIM",0
 txt_help2:       db "LINNER SHOOTS BY HIMSELF",0
 txt_help3:       db "SPACE OR FIRE: JUMP",0

@@ -6,7 +6,9 @@ it fits the frame budget.
 
 Each file becomes level1, level2, ... (labels levelN, levelN_foes, ...) and
 level_table lists them in order (LEVEL_COUNT entries of LEVEL_ENTRY bytes:
-dw segments, foes, goal, time (BCD), name; db start key, 0).
+dw segments, foes, goal, time easy / medium / hard (BCD), name, waypoints;
+db start key, waypoint count). The level's `time` is for hard; easy and
+medium run the world at DIFFICULTY of its speed and get time / factor.
 
 Text format, one segment per line ('#' starts a comment):
 
@@ -55,6 +57,19 @@ tb = type (1 Rectangle, 2 Triangle, 4/5 Rhombus, 6 spikes, 7 finish post)
 + 16 x seconds (Rhombus), and param (Triangle, Rhombus only) = the top row
 of its bobbing centre; ended by db 0,&FF. Also LABEL_length, LABEL_goal
 (the finish x) and LABEL_time (the time limit in BCD).
+
+Waypoints (the user asked: at least 3, more on longer levels): the tool
+places max(3, round(length / WAY_EVERY)) of them as evenly as it can, each
+where a restart in gear 1 is safe: at a segment start or inside a flat
+segment (split there, which generates the same keys), no gap or water just
+ahead, room to reach the gear the next gap or water needs, not between a
+Max Speed Rhombus and the chasm it is for (the boost ends with the life),
+and the post's screens within the frame budget. A restart skips the things
+less than WAY_CLEAR px ahead of it (its foe pointer starts after them).
+LABEL_ways: per waypoint
+  dw segment, db key, dw scroll x, dw foe record, dw x before it, dw pass x
+(WAY_SIZE bytes): the generator, spawn and scroll state to restart from,
+and the x where Linner passes its post (a T_WAY thing in the foe list).
 """
 import sys
 
@@ -74,6 +89,7 @@ FOES = {"rect": 1, "tri": 2}
 ITEMS = {"speed": 4, "phase": 5}
 TRAPS = {"spikes": 6}
 GOAL = 7
+WAY = 8                 # a waypoint post (added by the tool)
 TRI_H = 13
 RHOMB_H = 17
 
@@ -232,6 +248,107 @@ def water_reach(v, jump):
         v = max(WATER_MIN, v - WATER_DRAG)
         d += v
     return d
+
+
+DEBUG_SPOTS = False
+PLACE_WAYS = True       # levelgen.py turns it off while a level grows
+WAY_EVERY = 3500        # px of level per waypoint (at least 3)
+WAY_CLEAR = 250         # a restart skips the things this far ahead of it
+WAY_POST = 14           # the post stands this far ahead of the restart x
+WAY_SIZE = 11
+ACCEL = 12 / 256        # hero.asm: speed gained per frame
+DIFFICULTY = (0.6, 0.8, 1.0)    # easy, medium, hard: the world's speed
+
+
+def run_up(gear):
+    """Pixels from a standstill in gear 1 to the gear's speed, shifting
+    up at once (RIGHT), plus some slack."""
+    v = GEAR_SPEEDS[gear - 1]
+    return (v * v - 1) / (2 * ACCEL) + 60
+
+
+def waypoints(segs, start, keys, foes, need, src):
+    """Pick the waypoints: [(segment index, offset into it, restart x)]."""
+    n = max(3, round(len(keys) / WAY_EVERY))
+    bad = lambda k: k == 0xFF or k & 0x80
+    boosts = [(f[0], f[1] >> 4) for f in foes if f[1] & 15 == ITEMS["speed"]]
+    chasms = [gx for gx, _, gear in need if gear > GEAR_NORMAL]
+    # a restart between a Max Speed Rhombus and its chasm has no boost
+    no_go = [(sx - 100, gx) for sx, secs in boosts for gx in chasms
+             if sx < gx <= sx + fast_reach(secs)]
+    flats, x, cur = [], 0, start    # (x, segment, length a restart may split)
+    for i, (ln, alt, typ, w) in enumerate(segs):
+        if typ == "ground":         # flat: anywhere; a slope: at its start
+            flats.append((x, i, ln if alt == cur else 1))
+        x += ln
+        cur = alt
+    things = sorted([f[0] for f in foes] + [len(keys) - 2])
+    ext = keys + [keys[-1]] * (SCREEN_W + SCROLL_MAX)
+    pre = [0]
+    for i in range(len(ext)):
+        pre.append(pre[-1] + (1 if i >= SCROLL_MAX and ext[i] != ext[i - SCROLL_MAX] else 0))
+
+    def cheap(px):                  # the post's screens stay in the budget
+        for s in range(max(0, px - SCREEN_W) & ~1, min(len(keys), px + 41), 2):
+            n_things = 1 + sum(1 for x in things if s - 40 <= x < s + SCREEN_W)
+            us = (COST_BASE + COST_COL * (pre[s + SCREEN_W] - pre[s])
+                  + COST_THING * n_things + COST_SHOT * MAX_SHOTS)
+            if us > FRAME_US - COST_MARGIN or n_things > MAX_THINGS:
+                return False
+        return True
+
+    def ok(p):                      # p = scroll x at the restart
+        w = p + HERO_X
+        if p < 600 or p > len(keys) - 1500:
+            return False
+        if any(a <= w <= b for a, b in no_go):
+            return False
+        for gx, ln, gear in need:   # the first gap / water ahead
+            if gx + ln > w:
+                if gx - w < run_up(min(gear, GEAR_NORMAL)):
+                    return False
+                break
+        return not any(bad(k) for k in keys[p:w + 120]) and cheap(w + WAY_POST)
+
+    spots = []                      # every safe restart, 16 px apart
+    for x0, i, ln in flats:
+        for off in range(0, ln, 16):
+            if ok(x0 + off):
+                spots.append((x0 + off, i, off))
+    if DEBUG_SPOTS: print('SPOTS', [p for p,_,_ in spots])
+    # choose n of them so that the runs between waypoints (and from the
+    # start / to the finish) are as even as possible: least sum of squares
+    INF = 10 ** 18
+    m = len(spots)
+    best = [[(INF, -1, 0)] * m for _ in range(n + 1)]    # (cost, prev, longest)
+    for j, (p, _, _) in enumerate(spots):
+        best[1][j] = (p * p, -1, p)
+    for k in range(2, n + 1):
+        for j, (p, _, _) in enumerate(spots):
+            for i in range(j):
+                q = spots[i][0]
+                c = best[k - 1][i]
+                if p - q < 1000 or c[0] >= INF:
+                    continue
+                v = c[0] + (p - q) ** 2
+                if v < best[k][j][0]:
+                    best[k][j] = (v, i, max(c[2], p - q))
+    end = min(((best[n][j][0] + (len(keys) - spots[j][0]) ** 2,
+                max(best[n][j][2], len(keys) - spots[j][0]), j) for j in range(m)
+               if best[n][j][0] < INF), default=None)
+    end = end and (end[1], end[2])
+    limit = len(keys) * 8 // (5 * (n + 1))
+    if end is None or end[0] > limit:
+        sys.exit(f"{src}: can't place {n} waypoints at most {limit} px apart "
+                 f"(ground, room to speed up, frame budget): {'longest run ' + str(end[0]) if end else 'too few safe spots'}")
+    out, j, k = [], end[1], n
+    while k:
+        p, i, off = spots[j]
+        out.append((i, off, p))
+        j = best[k][j][1]
+        k -= 1
+    out.reverse()
+    return out
 
 
 def fast_reach(secs):
@@ -413,6 +530,24 @@ def level(src, label, budget, o, text=None):
     worst, at = check(keys, where)
     need = gaps(segs, start, foes, src)
     landings(keys, where, foes)
+    ways = waypoints(segs, start, keys, foes, need, src) if PLACE_WAYS else []
+    labels = {}                     # split the flat segments at the waypoints
+    for i, off, p in sorted(ways, reverse=True):
+        ln, alt, typ, w = segs[i]
+        if off:
+            segs[i:i + 1] = [(off, alt, typ, w), (ln - off, alt, typ, w)]
+    x = 0
+    starts = {}
+    for i, s in enumerate(segs):
+        starts[x] = i
+        x += s[0]
+    for k, (_, _, p) in enumerate(ways, 1):
+        labels[starts[p]] = (k, p)
+        foes.append((p + HERO_X + WAY_POST, WAY, 0, src))
+    foes.sort()
+    keys2, where, data = generate(start, segs)
+    assert keys2 == keys, "splitting a flat segment changed the ground"
+    ways_at = [p for _, _, p in ways]
     for x, typ, _, w in foes:       # Rectangles and spikes stand on ground
         width = {FOES["rect"]: 16, TRAPS["spikes"]: 19}.get(typ & 15)
         if width and any(k == 0xFF or k & 0x80 for k in keys[x:x + width]):
@@ -442,13 +577,20 @@ def level(src, label, budget, o, text=None):
         sys.exit(report + "\n  the time limit is too tight")
     print(report)
 
+    times = [min(999, -(-time * 10 // round(f * 10))) for f in DIFFICULTY]
     o += [f"; {label}: generated from {src}",
           f"; worst screen: {worst} changing columns at top speed",
           f"{label}_start_key equ {key(start)}",
           f"{label}_name: db \"{name}\",0",
           f"{label}:"]
     size = 0
-    for ln, typ, slope, kend in data:
+    seg_key = {}
+    y = key(start)
+    for i, (ln, typ, slope, kend) in enumerate(data):
+        if i in labels:
+            o.append(f"{label}_w{labels[i][0]}:")
+            seg_key[labels[i][0]] = y
+        y = kend
         if typ == 0xFF:
             o.append(f"  db {ln},&FF,{kend}")
             size += 3
@@ -459,14 +601,21 @@ def level(src, label, budget, o, text=None):
     o.append(f"; {len(data)} segments, {len(keys)} pixels")
     o.append(f"{label}_length equ {len(keys)}")
     o.append(f"{label}_goal equ {len(keys)}")
-    o.append(f"{label}_time equ &{time:04d}")
+    for d, t in zip(("e", "m", "h"), times):
+        o.append(f"{label}_time_{d} equ &{t:04d}")
     foes.append((len(keys) - 2, GOAL, 0, src))      # the finish post
     foes.sort()
     o.append(f"{label}_foes:")
     last = 0
+    pending = [(k, p + HERO_X + WAY_CLEAR) for k, p in enumerate(ways_at, 1)]
+    bases = {}
     for x, typ, param, w in foes:
         if not 0 <= x <= len(keys):
             sys.exit(f"{w}: foe outside the level (0..{len(keys) - 1})")
+        while pending and x >= pending[0][1]:
+            k = pending.pop(0)[0]
+            o.append(f"{label}_f{k}:")
+            bases[k] = last
         while x - last > 255:
             o.append("  db 255,0")
             last += 255
@@ -479,6 +628,14 @@ def level(src, label, budget, o, text=None):
             size += 2
         last = x
     o.append("  db 0,&FF")
+    o.append(f"{label}_ways:")
+    for k, p in enumerate(ways_at, 1):
+        o.append(f"  dw {label}_w{k}")
+        o.append(f"  db {seg_key[k]}")
+        o.append(f"  dw {p}, {label}_f{k}, {bases[k]}, {p + HERO_X + WAY_POST}")
+        size += WAY_SIZE
+    o.append(f"{label}_nways equ {len(ways_at)}")
+    print(f"  waypoints at x={[p + HERO_X for p in ways_at]}; time easy/medium/hard {times} s")
     o.append(f"; {size + 3 + len(name) + 1} bytes")
     print(f"  {size + 3 + len(name) + 1} bytes of level data")
 
@@ -491,10 +648,13 @@ def main():
     labels = [f"level{i}" for i in range(1, len(srcs) + 1)]
     for src, label in zip(srcs, labels):
         level(src, label, budget, o)
-    o += [f"LEVEL_COUNT equ {len(srcs)}", "LEVEL_ENTRY equ 12", "level_table:"]
+    o += [f"LEVEL_COUNT equ {len(srcs)}", "LEVEL_ENTRY equ 18",
+          f"WAY_SIZE equ {WAY_SIZE}", "level_table:"]
     for label in labels:
-        o.append(f"  dw {label}, {label}_foes, {label}_goal, {label}_time, {label}_name")
-        o.append(f"  db {label}_start_key, 0")
+        o.append(f"  dw {label}, {label}_foes, {label}_goal")
+        o.append(f"  dw {label}_time_e, {label}_time_m, {label}_time_h")
+        o.append(f"  dw {label}_name, {label}_ways")
+        o.append(f"  db {label}_start_key, {label}_nways")
     with open(out_path, "w") as f:
         f.write("\n".join(o) + "\n")
 

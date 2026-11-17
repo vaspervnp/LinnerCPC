@@ -22,12 +22,17 @@ GAPS      equ &7400             ; 384 x KEY_GAP: "old keys" for the first draw
 ; Start the level: generator at the first segment, screen ground empty.
 terrain_init:
   ld hl,(lv_segs)
-  ld (gen_ptr),hl
   ld a,(lv_key)
+  ld de,0
+  ; fall through
+; ... or at a waypoint: HL = segment, A = the key there, DE = scroll x
+; (a segment start, so this is the generator's whole state).
+terrain_start:
+  ld (gen_ptr),hl
   ld (gen_y+1),a
   ld a,&80                      ; half a row in, so the keys round
   ld (gen_y),a
-  ld hl,0
+  ex de,hl
   ld (scroll_wx),hl
   ld (gen_wx),hl
   ld (drawn_wx),hl

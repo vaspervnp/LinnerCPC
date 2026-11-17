@@ -42,13 +42,14 @@ T_FAST      equ 4               ; Rhombus: Max Speed
 T_PHASE     equ 5               ; Rhombus: Phase Out
 T_SPIKE     equ 6               ; trap on the Line
 T_GOAL      equ 7               ; the finish post
+T_WAY       equ 8               ; a waypoint post (both: no collisions)
 
 F_DRAWN     equ 0               ; flag bits
 F_VIS       equ 1
 F_DEAD      equ 2
 
-RECT_SPEED  equ &FF80           ; -0.5 px/frame: marching at Linner
-TRI_SPEED   equ &FF00           ; -1.0
+; Rectangles march at Linner at 0.5 px/frame, Triangles drift at 1.0 (on
+; hard: p_rect, p_tri hold the difficulty's)
 SHOT_GAP_MIN    equ 4               ; frames between shots, at least (shot_gap)
 SCORE_RECT  equ &10             ; points, BCD
 SCORE_TRI   equ &15
@@ -69,16 +70,26 @@ type_info:
   dw spike_tab
   db GOAL_W, GOAL_H
   dw goal_tab
+  db WAY_W, WAY_H
+  dw way_tab
 
 objects_init:
+  call objects_clear
+  ld hl,(lv_foes)
+  ld de,0
+  jr objects_start
+objects_clear:
   ld hl,OBJECTS
   ld de,OBJECTS+1
   ld bc,MAX_OBJ*OBJ_SIZE-1
   ld (hl),0
   ldir
-  ld hl,(lv_foes)
+  ret
+; ... a waypoint's (after objects_clear): HL = foe record, DE = x of the
+; record before it.
+objects_start:
   ld (spawn_ptr),hl
-  ld hl,0
+  ex de,hl
   ld (spawn_base),hl
   ld (spawn_x),hl
   xor a
@@ -150,7 +161,7 @@ objects_update:
 
 update_jump:
   dw rect_update, tri_update, shot_update
-  dw thing_update, thing_update, thing_update, thing_update
+  dw thing_update, thing_update, thing_update, thing_update, thing_update
 
 ; x += vx (24-bit, vx sign-extended)
 obj_move_x:
@@ -256,7 +267,7 @@ rect_update:
 .fall:
   ld l,(ix+O_VY)
   ld h,(ix+O_VY+1)
-  ld de,GRAVITY
+  ld de,(p_gravity)
   add hl,de
   ld (ix+O_VY),l
   ld (ix+O_VY+1),h
@@ -418,6 +429,79 @@ obj_place:
   ret z
   jr .off
 
+; The finish and waypoint posts: not compiled sprites (memory) but a small
+; XOR loop: a 1-pixel post with a 4-pixel flag on its first POST_FLAG rows,
+; right of the post (pen 3). The finish post is the taller one. One entry
+; per pixel phase (goal_tab, way_tab).
+GOAL_W      equ 5
+GOAL_H      equ 48
+WAY_W       equ 5
+WAY_H       equ 28
+POST_FLAG   equ 6
+goal_tab:
+  dw goal_p0, goal_p1, goal_p2, goal_p3
+way_tab:
+  dw way_p0, way_p1, way_p2, way_p3
+goal_p0:
+  ld a,GOAL_H-POST_FLAG
+  jr post_p0
+goal_p1:
+  ld a,GOAL_H-POST_FLAG
+  jr post_p1
+goal_p2:
+  ld a,GOAL_H-POST_FLAG
+  jr post_p2
+goal_p3:
+  ld a,GOAL_H-POST_FLAG
+  jr post_p3
+way_p0:
+  ld a,WAY_H-POST_FLAG
+post_p0:
+  ld de,&7788                   ; D = flag in the post's byte, E = next byte
+  ld c,&88                      ; C = the post pixel
+  jr post_xor
+way_p1:
+  ld a,WAY_H-POST_FLAG
+post_p1:
+  ld de,&33CC
+  ld c,&44
+  jr post_xor
+way_p2:
+  ld a,WAY_H-POST_FLAG
+post_p2:
+  ld de,&11EE
+  ld c,&22
+  jr post_xor
+way_p3:
+  ld a,WAY_H-POST_FLAG
+post_p3:
+  ld de,&00FF
+  ld c,&11
+post_xor:                       ; HL = top-left byte, A = rows below the flag
+  push af
+  ld b,POST_FLAG
+.flag:
+  ld a,c
+  or d
+  xor (hl)
+  ld (hl),a
+  inc hl
+  ld a,(hl)
+  xor e
+  ld (hl),a
+  dec hl
+  DOWNS
+  djnz .flag
+  pop af
+  ld b,a
+.post:
+  ld a,(hl)
+  xor c
+  ld (hl),a
+  DOWNS
+  djnz .post
+  ret
+
 ; ---------------------------------------------------------------------------
 ; Spawning: the level's foe list (levelN_foes, sorted by x) holds records
 ; db dx, tb [, param]: dx = pixels on from the previous record, tb = type
@@ -497,11 +581,11 @@ spawn_foes:
   ld (ix+O_BASE),a
   ld (ix+O_Y),a
 .noparam:
-  ld hl,RECT_SPEED
+  ld hl,(p_rect)
   ld a,(ix+O_TYPE)
   cp T_RECT
   jr z,.speed
-  ld hl,TRI_SPEED
+  ld hl,(p_tri)
   cp T_TRI
   jr z,.speed
   ld hl,0                       ; items, traps and the post stay put
@@ -758,7 +842,7 @@ things_vs_hero:
   jp c,.next
   ld a,(ix+O_TYPE)
   cp T_GOAL
-  jp z,.next
+  jp nc,.next                   ; the posts
   ld c,(ix+O_W)
   ld b,(ix+O_H)
   ld l,(ix+O_NSX)               ; left - (Linner x + HIT_R) < 0 ?

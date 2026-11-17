@@ -198,9 +198,11 @@ def section(g, kind, theme):
         raise ValueError(kind)
 
 
-def check(text, path):
-    """Run level2asm on the text: (error message or None, warnings)."""
+def check(text, path, ways=False):
+    """Run level2asm on the text: (error message or None, warnings). The
+    waypoints are placed only on the finished level (ways=True)."""
     out = io.StringIO()
+    L.PLACE_WAYS = ways
     try:
         with contextlib.redirect_stdout(out):
             L.level(path, "levelx", True, [], text=text)
@@ -270,7 +272,7 @@ def build(n):
             sys.exit(f"level {n}: stuck at x={g.x}: {(err or warns[0]).splitlines()[-1]}")
     g.flat(160, note="the finish post")
     full, time = render(g, True)
-    err, warns = check(full, path)
+    err, warns = check(full, path, ways=True)
     if err or warns:
         sys.exit(f"level {n}: {err or warns}")
     open(path, "w").write(full)

@@ -109,20 +109,56 @@ Design: `linner_game_story.md`, plan: `milestones.md`.
   and stay above the Line. Linner can't shoot downwards: a Rectangle lower
   than him has to be jumped. Touching a foe loses the life. 10 points per
   Rectangle, 15 per Triangle (score is 6 BCD digits).
-- Jump: vy -5 rows/frame, gravity 0.25, cut to -2 on release: 50 rows high,
+- Jump (hard's values; see Difficulty): vy -5 rows/frame, gravity 0.25, cut to -2 on release: 50 rows high,
   40 frames long (40 px at gear 1 ... 280 px at gear 5). Linner lands only
   coming from above (within LAND_TOL rows); once below a surface he keeps
   falling. Grounded, he follows the ground unless it drops > DROP_MAX rows
   in a frame (ledges, gap edges), then falls.
+- Second jump (the user asked): pressing jump again during a jump (once;
+  hero_jumps 0/1/2, not after rolling off a ledge) sets vy to JUMP_V2 =
+  -2.5: half the speed, 20 frames, half the distance, ~12 rows up.
+  level2asm's checks ignore it (they stay the conservative case), and the
+  autopilot never uses it (it only holds the button in the air).
 - Gaps: falling off the bottom loses the life. Water: speed drains to 0.5
   px/frame and the soggy meter (HUD bar) fills 1 per frame; at 80 he sinks.
   Crossing fast or jumping is "traversing correctly". Dry ground drains it.
+- Difficulty (the user asked: easy / medium max speed 60% / 80% of hard,
+  hard = as before): `difficulty` 0/1/2, LEFT/RIGHT on the title ("DIFFICULTY
+  < MEDIUM >", default medium; test builds hard, DIFF_DEFAULT), game_new
+  copies a diff_table entry (gen_tables.py, DIFF_SIZE 37) into `phys`
+  (p_gears, p_accel, ... p_bonus) and the code reads the speeds from there.
+  The whole world is scaled so the levels play the same in space: speeds
+  x f (gears, jump / 2nd jump / cut, VY_MAX, water min, Rectangle,
+  Triangle, soggy fill per frame via hero_soggy_f), accelerations x f*f
+  (gravity, accel, decel, water drag), frame counts / f (gear-up time,
+  powerup frames per second p_fps). Level times come from level2asm per
+  difficulty (time / f); the finish bonus is 6 / 8 / 10 points a second.
+  Shots keep 5 px/frame. Ghost runs on easy and medium finish levels 1, 5,
+  6 like hard (DIFF_DEFAULT=0/1 test builds). The table marks each entry
+  E/M/H: 2 - difficulty in bit 7 of its first two name letters (0 = hard,
+  as every table saved before), hs_mark / hs_row_xor.
+- Waypoints (the user asked: 3+ per level by length, a lost life restarts
+  at the last one passed): level2asm places max(3, round(len / 3500)) as
+  evenly as it can (least sum of squared runs) where a gear-1 restart is
+  safe: a segment start or inside a flat segment (split there: same keys),
+  no gap/water within 120 px, run_up() to the next gap's gear, not between
+  a Max Speed Rhombus and its chasm, the post's screens in the frame
+  budget. A restart skips the things < WAY_CLEAR (250) px ahead (its foe
+  pointer starts after them). LABEL_ways records (WAY_SIZE 11): segment,
+  key, scroll x, foe record, x before it, pass x. level_setup restarts
+  from wp_last's record (terrain_start, objects_clear + objects_start,
+  time = wp_time); game_play saves time_left in wp_time when Linner passes
+  the next post (wp_next); level_begin (new level, new game) clears
+  wp_last. READY says "LEVEL n: WAYPOINT k". Posts are T_WAY things (no
+  collisions, like T_GOAL); both posts are drawn by post_xor (a 1-px post
+  with a 4-px flag, ~60 bytes), not compiled sprites: the goal's compiled
+  sprite was ~3K and the code area was full.
 - Game flow (game.asm): READY ("LEVEL n: NAME", 90 frames frozen) ->
   PLAY -> past the finish post: COMPLETE (Linner coasts, every second left
   = 10 points, then the next level; after the last one "THE LINE IS
   YOURS!" and the same ending as a game over) ->
-  ... Losing a life restarts the level (`level_setup`: palette black, XOR
-  everything away, ground_wipe, re-init, full redraw); 3 lives, then GAME
+  ... Losing a life restarts the level at the last waypoint (`level_setup`:
+  palette black, XOR everything away, ground_wipe, re-init, full redraw); 3 lives, then GAME
   OVER (4 s), the name entry if the score makes the Top 10, and the title.
   The timer (`time N` in the level, BCD) running out
   loses a life too.
@@ -140,8 +176,9 @@ Design: `linner_game_story.md`, plan: `milestones.md`.
   Text uses a 5x7 font (gen_tables.py) via print_hud (write) / print_xor
   (messages over the play area, removed by printing again).
 
-- Title (GS_TITLE, hiscore.asm): the Top 10, a blinking "PRESS FIRE", the
-  controls; FIRE or JUMP starts a game. A new entry blinks.
+- Title (GS_TITLE, hiscore.asm): the Top 10 (rows 10 apart from y 36,
+  "10. ABCDE  001234 H"), a blinking "PRESS FIRE" (y 140), the difficulty
+  (y 152), the controls; FIRE or JUMP starts a game. A new entry blinks.
 - Name entry (GS_ENTRY): 5 characters starting "A    "; UP/DOWN cycle
   A-Z 0-9 . - ! space (repeats when held), RIGHT/FIRE next, LEFT back,
   FIRE on the last one finishes. Or type: letters, digits, . - space,
@@ -183,8 +220,10 @@ Design: `linner_game_story.md`, plan: `milestones.md`.
 ## Levels (levels/levelN.txt -> build/levels.asm)
 - `tools/level2asm.py out.asm levels/level1.txt ...` (the Makefile passes
   every levels/level*.txt in order) emits levelN data and `level_table`
-  (12 bytes per level: segments, foes, goal, time, name, start key);
-  `level_load` copies the current entry into lv_segs..lv_key.
+  (18 bytes per level, see below);
+  `level_load` copies the current entry into lv_segs..lv_nways
+  (LEVEL_ENTRY 18: segments, foes, goal, times easy/medium/hard, name,
+  waypoints; start key, waypoint count).
 - Compact data (memory is the limit: ~2.6K of levels for ~86K px): a
   segment is `db len, key` (water: &80+key; a gap `db len, &FF, key`), and
   seg_load works out the slope, round(|dy| * 256 + len/2) / len, exactly as
@@ -197,7 +236,8 @@ Design: `linner_game_story.md`, plan: `milestones.md`.
   its hand-made opening above `# === generated ===`; `tools/levelgen.py
   [N]` rewrites the rest (themed random sections, fixed seeds) and the
   time limit, growing the level section by section and backtracking when
-  level2asm reports an error or a fairness warning.
+  level2asm reports an error or a fairness warning (with PLACE_WAYS off:
+  the waypoints are placed once, on the finished level).
 - Besides the slope budget the tool checks, and fails the build on:
   each gap's gear (a full jump of 40ish frames at the gear's speed must
   cover the gap minus GAP_EDGE = 8 px; gear 5 only after a speed Rhombus
@@ -246,8 +286,11 @@ Design: `linner_game_story.md`, plan: `milestones.md`.
 - Mode 1 full overscan, 384x272, **single buffer** at &8000-&FFFF (32K via
   the R12 bits 2-3 trick, R12/R13 = &2C/&10 so charline 21 starts exactly at
   &C000). Runs on any 64K CPC; code, tables and levels live in
-  &0040-&6FFF (code_end ~&6A70), the variables at &7C00-&7D7F (not in
-  LINNER.BIN, cleared at start-up), the stack below &8000.
+  &0040-&6FFF (code_end ~&65F0), the variables at &7C00-&7DFF (not in
+  LINNER.BIN, cleared at start-up; ~&7D9C used), the stack below &8000.
+  Text buffers sit among the variables: hs_row (20) overran disk_track /
+  disk_sector once (the save then wrote the wrong sector), so size them
+  with the longest text.
 - No double buffering: everything is XOR (ground, Linner, foes, shots), so
   any layer can be redrawn without disturbing the others. Each frame
   Linner and the objects are erased and redrawn first (right after VSYNC,

@@ -9,24 +9,22 @@
 ; R = 10 (256 / (2 pi R) = 4.07).
 ; ===========================================================================
 
-; Gear target speeds, pixels per frame in 8.8 fixed point: 1.0 up to 7.0,
-; twice the old top (the user's choice). Linner shifts up by himself every
-; GEAR_TIME frames (LEFT / RIGHT still shift, and restart the count).
-gear_speed:
-  dw &0000                      ; (unused gear 0)
-  dw &0100, &01E0, &0300, &04D0, &0700
-ACCEL       equ &000C           ; per frame when below the gear's speed
-DECEL       equ &0018           ; per frame when above it
-GEAR_TIME   equ 150             ; 3 seconds
+; Gear target speeds on hard, pixels per frame in 8.8 fixed point: 1.0 up
+; to 7.0, twice the old top (the user's choice). Linner shifts up by
+; himself every 3 seconds (LEFT / RIGHT still shift, and restart the count).
+; The speeds, accelerations and timings below are hard's: the game uses the
+; difficulty's copy in phys (gen_tables.py diff_table: easy and medium run
+; the whole world at 60% / 80%, every jump landing where it does on hard).
+; gears &0100, &01E0, &0300, &04D0, &0700
 MAX_GEAR_NORMAL equ 4           ; gear 5 needs the Maximum Speed powerup
 
 ; Vertical motion, rows per frame in 8.8 (game y grows downwards).
 ; A full jump rises 50 rows and lasts 40 frames: 40 px at gear 1, 110 at
 ; gear 4, 140 at gear 5. Releasing the button early cuts the climb short.
-GRAVITY     equ &0040
-JUMP_V      equ &FB00           ; -5.0
-JUMP_CUT    equ &FE00           ; -2.0: rise speed left when jump is released
-VY_MAX      equ &0600
+; Pressing it again during a jump (once) jumps again from there at half the
+; speed: JUMP_V2 rises ~12 rows and lasts 20 frames, half the distance.
+; (hard: gravity 0.25, jump -5.0, second jump -2.5, cut to -2.0 when the
+; button is released, falls at most 6 rows a frame)
 DROP_MAX    equ 8               ; ground falling away faster than this: airborne
                                 ; (a 45 degree slope at 7 px/frame stays ground)
 LAND_TOL    equ 4               ; may land up to this far below the surface
@@ -36,8 +34,8 @@ NO_GROUND   equ 255
 
 ; Water: circles can't swim. Rolling on a water line drags the speed down
 ; and soaks Linner; SOGGY_MAX frames in a row and he sinks.
-WATER_DRAG  equ &0008
-WATER_MIN   equ &0080
+; (hard: the speed drains by 8/256 a frame down to 0.5; easy and medium
+; soak more slowly, so a stretch of water soaks him as much on each)
 SOGGY_MAX   equ 80
 SINK_SPEED  equ &0040
 SINK_TIME   equ 60              ; frames from sinking to the restart
@@ -49,7 +47,7 @@ HERO_GONE    equ 2
 
 ; One gear up, if allowed; the 3-second count starts again either way.
 gear_up:
-  ld a,GEAR_TIME
+  ld a,(p_gear_time)
   ld (gear_timer),a
   ld hl,max_gear
   ld a,(gear)
@@ -60,7 +58,7 @@ gear_up:
   ret
 
 hero_init:
-  ld a,GEAR_TIME
+  ld a,(p_gear_time)
   ld (gear_timer),a
   ld a,1
   ld (gear),a
@@ -92,6 +90,7 @@ hero_init:
   ld (hero_hidden),a
   ld (hero_state),a
   ld (hero_soggy),a
+  ld (hero_soggy_f),a
   ld (hero_on_water),a
   ld (hero_cy_frac),a
   call hero_contact
@@ -123,7 +122,7 @@ hero_controls:
   ld a,(pad_new)
   bit PAD_LEFT,a
   jr z,.no_down
-  ld a,GEAR_TIME                ; (a shift restarts the count)
+  ld a,(p_gear_time)                ; (a shift restarts the count)
   ld (gear_timer),a
   ld a,(gear)
   cp 2
@@ -135,24 +134,41 @@ hero_controls:
   ld a,(hero_grounded)
   or a
   jr z,.air
+  xor a                         ; on the ground: no jump under way
+  ld (hero_jumps),a
   ld a,(pad_new)                ; jump
   bit PAD_JUMP,a
   ret z
   xor a
   ld (hero_grounded),a
-  ld hl,JUMP_V
+  inc a
+  ld (hero_jumps),a
+  ld hl,(p_jump_v)
   ld (hero_vy),hl
   ret
 .air:
+  ld a,(pad_new)                ; pressed again during a jump: the second,
+  bit PAD_JUMP,a                ; half-strength jump (one per jump; not
+  jr z,.cut                     ; after rolling off a ledge)
+  ld a,(hero_jumps)
+  dec a
+  jr nz,.cut
+  ld a,2
+  ld (hero_jumps),a
+  ld hl,(p_jump_v2)
+  ld (hero_vy),hl
+  ret
+.cut:
   ld a,(pad)                    ; released while still rising fast: cut
   bit PAD_JUMP,a
   ret nz
   ld hl,(hero_vy)
-  ld de,-JUMP_CUT and &FFFF
-  add hl,de                     ; vy - JUMP_CUT
+  ld de,(p_jump_cut)
+  or a
+  sbc hl,de                     ; vy - cut
   bit 7,h
   ret z
-  ld hl,JUMP_CUT
+  ld hl,(p_jump_cut)
   ld (hero_vy),hl
   ret
 
@@ -222,9 +238,10 @@ hero_speed:
   or a
   jr z,.ease
   ld hl,(speed)
-  ld de,-WATER_DRAG
-  add hl,de
-  ld de,WATER_MIN
+  ld de,(p_water_drag)
+  or a
+  sbc hl,de
+  ld de,(p_water_min)
   push hl
   or a
   sbc hl,de
@@ -237,7 +254,7 @@ hero_speed:
   add a,a
   ld l,a
   ld h,0
-  ld de,gear_speed
+  ld de,p_gears-2
   add hl,de
   ld e,(hl)
   inc hl
@@ -248,7 +265,7 @@ hero_speed:
   ret z
   jr nc,.too_fast
   add hl,de                     ; below target: accelerate
-  ld bc,ACCEL
+  ld bc,(p_accel)
   add hl,bc
   push hl
   or a
@@ -259,8 +276,9 @@ hero_speed:
   jr .store
 .too_fast:
   add hl,de
-  ld bc,-DECEL
-  add hl,bc
+  ld bc,(p_decel)
+  or a
+  sbc hl,bc
   push hl
   or a
   sbc hl,de
@@ -335,11 +353,11 @@ hero_vertical:
   ld a,(hero_cy)
   ld b,a                        ; B = centre y before this frame's move
   ld hl,(hero_vy)
-  ld de,GRAVITY
+  ld de,(p_gravity)
   add hl,de
   bit 7,h
   jr nz,.vy_ok
-  ld de,VY_MAX
+  ld de,(p_vy_max)
   push hl
   or a
   sbc hl,de
@@ -414,8 +432,11 @@ hero_water:
   jr z,.ghost
   ld a,1
   ld (hero_on_water),a
-  inc (hl)
-  ld a,(hl)
+  ld hl,(hero_soggy_f)          ; the meter fills at the difficulty's pace
+  ld de,(p_soggy)
+  add hl,de
+  ld (hero_soggy_f),hl
+  ld a,h
   cp SOGGY_MAX
   ret c
   ld a,HERO_SINKING
@@ -435,9 +456,10 @@ hero_water:
 ; Level complete: roll to a stop, still following the Line.
 hero_coast:
   ld hl,(speed)
-  ld de,-DECEL
-  add hl,de
-  jr c,.slower                  ; (no borrow: still above zero)
+  ld de,(p_decel)
+  or a
+  sbc hl,de
+  jr nc,.slower                 ; still above zero
   ld hl,0
 .slower:
   ld (speed),hl
