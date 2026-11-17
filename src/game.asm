@@ -65,6 +65,14 @@ game_new:
 level_begin:
   xor a
   ld (wp_last),a
+  ld a,(level_num)              ; the music, in this level's key
+  ld e,a
+  ld d,0
+  ld hl,level_keys-1
+  add hl,de
+  ld c,(hl)
+  ld a,SONG_GAME
+  call music_play
   ; fall through
 
 ; (Re)start the current level: wipe what is on screen, set everything up,
@@ -288,6 +296,8 @@ game_play:
   ld (wp_last),a
   ld hl,(time_left)
   ld (wp_time),hl
+  ld a,SFX_WAY
+  call sfx_play
 .no_way:
   ld hl,(scroll_wx)             ; past the finish post?
   ld de,HERO_X
@@ -323,6 +333,9 @@ game_play:
 .finish:
   ld de,txt_complete
   call msg_show
+  ld a,SONG_DONE
+  ld c,0
+  call music_play
   ld a,GS_COMPLETE
   ld b,DONE_TIME
   jp game_state_set
@@ -377,6 +390,9 @@ game_life_lost:
   jp nz,level_setup
   ld de,txt_game_over
   call msg_show
+  ld a,SONG_OVER
+  ld c,0
+  call music_play
   ld a,GS_OVER
   ld b,OVER_TIME
   call game_state_set
@@ -521,6 +537,9 @@ msg_hide:
   ld hl,0
   ld (msg_cur),hl
   ret
+
+; the in-game song's key in each level (semitones)
+level_keys:   db 0,2,3,-2,5,7
 
 txt_waypoint: db "WAYPOINT "
 txt_ready:    db "LEVEL "

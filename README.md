@@ -15,6 +15,13 @@ sunset over wireframe mountains, and a floor that rolls towards you. In
 the game, warp streaks rush through the sky at a multiple of Linner's
 speed.
 
+The AY chip plays the music and the sound effects, from the interrupt:
+- a title theme;
+- an in-game theme with bass, lead and drums, in a different key for each
+  level;
+- jingles for a level complete and for game over;
+- effects for jumps, shots, hits, powerups, splashes, waypoints and crashes.
+
 | | |
 |:---:|:---:|
 | ![Title screen with the Top 10](docs/screenshots/title.png) | ![Level 1: Linner rolling under the warp streaks](docs/screenshots/level1.png) |
@@ -108,6 +115,7 @@ make
 | `make debug` | the border shows the frame time (red = drawing, blue = logic) |
 | `make shot`, `make sim` | scripted demo in Caprice32 or in the Python Z80 simulator (`tools/cpcsim.py`) |
 | `make hitest` | high score save and read-back on a real disc image |
+| `make video` | `build/linner_video.mp4`: four minutes of the demo with its music, recorded in the simulator (needs ffmpeg) |
 | `make screens` | the screenshots in `docs/screenshots/` |
 | `make manuals` | the PDF manuals from `docs/manual_*.md` |
 | `make release` | `build/release/linner-1.0.zip`: disc, snapshot, README, disc label and the PDF manuals |
@@ -129,7 +137,8 @@ the frame budget, for example:
 ```
 src/        Z80 sources (main.asm includes the rest)
 levels/     level1.txt ... level6.txt
-tools/      level compiler, table generator, Z80 simulator, emulator scripts
+tools/      level compiler, table and music generators, Z80 simulator,
+            video recorder, emulator scripts
 docs/       manuals and screenshots
 release/    README.txt and the disc label for the release zip
 ```

@@ -47,6 +47,7 @@ disk_load:
   ret nc
   call disk_motor_on
   di
+  call sound_mute              ; (no interrupt, no sound: no drone)
   call fdc_start                ; specify, recalibrate (track 0)
   jr nc,.done
   xor a                         ; the directory's first sector
@@ -73,6 +74,7 @@ disk_save:
   ret z                         ; never found the file (CF = 0)
   call disk_motor_on
   di
+  call sound_mute              ; (no interrupt, no sound: no drone)
   call fdc_start
   jr nc,.done
   call fdc_seek_file

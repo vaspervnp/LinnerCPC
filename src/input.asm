@@ -3,6 +3,7 @@
 ; ===========================================================================
 
 kbd_scan:
+  di                            ; (the interrupt writes the AY too)
   ld bc,&F40E                   ; PSG register 14 = port A
   out (c),c
   ld bc,&F6C0                   ; PSG: select register
@@ -26,6 +27,7 @@ kbd_scan:
   out (c),c
   ld bc,&F600
   out (c),c
+  ei
   ret
 
 ; A = key code. Returns NZ if the key is held. Trashes BC, HL.

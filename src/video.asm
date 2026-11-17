@@ -73,7 +73,8 @@ cls:
 
 ; ---------------------------------------------------------------------------
 ; Interrupts: the Gate Array fires 6 per frame (300 Hz). The one that lands
-; during VSYNC (PPI port B bit 0) marks the start of a new frame.
+; during VSYNC (PPI port B bit 0) marks the start of a new frame; the 6th
+; plays the sound.
 ; ---------------------------------------------------------------------------
 int_handler:
   push af
@@ -81,10 +82,24 @@ int_handler:
   ld b,PPI_B
   in a,(c)
   rra
-  jr nc,.done
+  jr nc,.other
   ld a,(vsync_count)
   inc a
   ld (vsync_count),a
+  xor a                         ; the count of this frame's interrupts
+  ld (int_n),a
+  jr .done
+.other:
+  ld a,(int_n)
+  inc a
+  ld (int_n),a
+  cp 5                          ; the 6th, ~3 ms before VSYNC: the sound
+  jr nz,.done                   ; (sound.asm)
+  push de
+  push hl
+  call sound_tick
+  pop hl
+  pop de
 .done:
   pop bc
   pop af

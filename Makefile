@@ -7,6 +7,7 @@
 #   make shot       headless Caprice32 run of the scripted demo -> build/shot.png
 #   make sim        same demo in tools/cpcsim.py, with frame timings
 #   make hitest     high score save/load round trip on a disk in Caprice32
+#   make video      build/linner_video.mp4: 4 minutes of the demo, with sound
 #   make release    build/release/linner-$(VERSION).zip
 #   make screens    docs/screenshots/*.png (README and manuals)
 #   make manuals    docs/manual_en.pdf + docs/manual_el.pdf
@@ -16,7 +17,7 @@ RASM   := rasm -amper -v2
 B      := build
 SRC    := $(wildcard src/*.asm)
 LEVELS := $(sort $(wildcard levels/level*.txt))
-GEN    := $(B)/tables.asm $(B)/levels.asm
+GEN    := $(B)/tables.asm $(B)/levels.asm $(B)/music.asm
 EMU    ?= caprice32
 DEFS   ?=
 TEST_FRAMES ?= 300
@@ -28,6 +29,9 @@ $(B):
 
 $(B)/tables.asm: tools/gen_tables.py | $(B)
 	python3 tools/gen_tables.py $@
+
+$(B)/music.asm: tools/gen_music.py | $(B)
+	python3 tools/gen_music.py $@
 
 $(B)/levels.asm: $(LEVELS) tools/level2asm.py | $(B)
 	python3 tools/level2asm.py $@ $(LEVELS)
@@ -106,6 +110,20 @@ $(B)/hitest/linner.dsk: $(SRC) $(GEN) $(B)/loader.bin src/disc.bas tools/hiscore
 hitest: $(B)/hitest/linner.dsk
 	tools/cpcemu -timeout 120 -shot $(B)/hitest.png $(B)/hitest/linner.sna $(B)/hitest/linner.dsk
 
+# The video (tools/video.py): the demo autopilot (TEST_VIDEO: second jumps,
+# no gear 5) from the title through levels 1-3, the Bureau's game over, the
+# name entry and back; cpcsim frames and the AY's sound, synthesised.
+VIDEO_FRAMES ?= 12300
+$(B)/video/linner.sna: $(SRC) $(GEN)
+	mkdir -p $(B)/video
+	cd $(B)/video && $(RASM) -I../../src -I.. -DTEST_FRAMES=30000 -DTEST_TITLE_WAIT=500 -DTEST_VIDEO=1 \
+	  -DDIFF_DEFAULT=1 ../../src/main.asm -oi linner.sna -os linner.sym -s -sl 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > rasm.log; \
+	  if grep -qiE "error|warning" rasm.log; then cat rasm.log; rm -f linner.sna; exit 1; fi
+
+video: $(B)/video/linner.sna
+	python3 tools/video.py $(B)/video/linner.sna --sym $(B)/video/linner.sym \
+	  --frames $(VIDEO_FRAMES) --out $(B)/linner_video.mp4
+
 # The release: the disc, the snapshot, the README, the disc label and the manuals.
 VERSION ?= 1.0
 release: all manuals
@@ -129,4 +147,4 @@ manuals: docs/manual_en.pdf docs/manual_el.pdf
 clean:
 	rm -rf $(B)
 
-.PHONY: all run run-dsk debug shot sim hitest release screens manuals clean
+.PHONY: all run run-dsk debug shot sim hitest video release screens manuals clean

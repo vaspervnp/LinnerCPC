@@ -9,6 +9,7 @@
 ;   &7400-&757F   384 gap keys (the "old" ground of the first frame)
 ;   &7580-&75DF   scratch row: gap columns "draw" here
 ;   &7600-&76C5   object slots: 6 foes/items/traps, 3 shots
+;   &7700-&775F   sound state (sound.asm)
 ;   &7800-&7BFF   terrain run lengths (mirrored like the key ring)
 ;   &7C00-&7D7F   variables (cleared at start-up)
 ;   &7D80-&7FFF   stack
@@ -42,6 +43,12 @@ TEST_GHOST equ 0                ; tests: Linner is phased out for good
   ifndef TEST_SOAK
 TEST_SOAK equ 0                 ; tests: 1 = roll through water, 2 = also stay in gear 1
   endif
+  ifndef TEST_VIDEO
+TEST_VIDEO equ 0                ; tests: the video's autopilot (tools/video.py)
+  endif
+  ifndef TEST_TITLE_WAIT
+TEST_TITLE_WAIT equ 0           ; tests: loops on the title before FIRE (the video)
+  endif
   ifndef TEST_HISCORE
 TEST_HISCORE equ 0              ; tests: 1 life, score 1234, scripted name entry, disk
   endif
@@ -66,6 +73,7 @@ start:
   ldir
   ld a,DIFF_DEFAULT
   ld (difficulty),a
+  call sound_init
   call video_init               ; overscan, black palette, screen cleared
   call objects_init
   ld bc,FDC_MOTOR               ; (the loader left the drive motor off)
@@ -146,6 +154,15 @@ test_input:
   jr nz,.auto
   ld c,1<<PAD_LEFT
   endif
+  if TEST_VIDEO                 ; (the video: no gear 5, its long jumps
+  ld a,(game_state)             ; land on Rectangles; levels 1-4 never
+  cp GS_PLAY                    ; need it)
+  jr nz,.auto
+  ld a,(gear)
+  cp GEARS
+  jr nz,.auto
+  ld c,1<<PAD_LEFT
+  endif
   if 0                          ; (the gears go up by themselves now)
   ld a,(game_state)             ; playing: shift up every 16 loops while
   cp GS_PLAY                    ; the gear is below the limit (4, or 5 with
@@ -210,6 +227,23 @@ test_input:
   djnz .foe
   jr .set
 .air:
+  if TEST_VIDEO                 ; the video: a second jump when coming
+  ld a,(hero_jumps)             ; down towards a gap, water, spikes or a
+  dec a                         ; Rectangle
+  jr nz,.hold
+  ld a,(hero_vy+1)
+  or a
+  jp m,.hold                    ; (still rising)
+  push bc
+  call video_danger
+  pop bc
+  jr z,.hold
+  ld a,(pad)                    ; let go for a loop, then press again
+  and 1<<PAD_JUMP
+  jr nz,.set
+  jr .jump
+.hold:
+  endif
   ld a,(pad)                    ; keep holding jump in the air
   and 1<<PAD_JUMP
   jr z,.set
@@ -234,6 +268,61 @@ test_input:
   ld a,c
   ld (pad),a
   ret
+  if TEST_VIDEO
+; NZ if a gap or water is 8..56 px ahead of Linner, or spikes or a
+; Rectangle up to 64 px ahead (or under him).
+video_danger:
+  ld de,8
+.probe:
+  push de
+  ld hl,(scroll_wx)
+  add hl,de
+  ld de,HERO_X
+  add hl,de
+  call ring_addr
+  ld a,(hl)
+  pop de
+  inc a
+  jr z,.yes                     ; a gap
+  cp KEY_WATER+1
+  jr nc,.yes                    ; water
+  ld a,e
+  add a,16
+  ld e,a
+  cp 72
+  jr c,.probe
+  ld ix,OBJECTS
+  ld b,MAX_FOES
+.foe:
+  ld a,(ix+O_TYPE)
+  cp T_RECT
+  jr z,.isfoe
+  cp T_SPIKE
+  jr nz,.next
+.isfoe:
+  bit F_VIS,(ix+O_FLAGS)
+  jr z,.next
+  ld l,(ix+O_NSX)
+  ld h,(ix+O_NSX+1)
+  ld de,-(HERO_X-12)
+  add hl,de
+  ld a,h
+  or a
+  jr nz,.next
+  ld a,l
+  cp 76
+  jr c,.yes
+.next:
+  ld de,OBJ_SIZE
+  add ix,de
+  djnz .foe
+  xor a
+  ret
+.yes:
+  or 1
+  ret
+  endif
+
 TEST_LOOKAHEAD equ 4            ; jump when the gap / water is this far ahead
                                 ; of Linner's centre (late, for a long jump)
 
@@ -247,6 +336,21 @@ test_title:
   ld a,(state_timer)
   or a
   jr nz,test_pad
+  if TEST_TITLE_WAIT            ; (the video: linger on the title, and
+  ld hl,(test_frame)            ; show the difficulty going up one)
+  ld de,TEST_TITLE_WAIT-120
+  or a
+  sbc hl,de
+  jr c,test_pad
+  jr nz,.later
+  ld c,1<<PAD_RIGHT
+  jr test_pad
+.later:
+  ld de,120
+  or a
+  sbc hl,de
+  jr c,test_pad
+  endif
   ld c,1<<PAD_FIRE
   jr test_pad
 
@@ -356,8 +460,10 @@ TEST_NAME_END equ 64
   include "menu.asm"
   include "particles.asm"
   include "disk.asm"
+  include "sound.asm"
   include "tables.asm"
   include "levels.asm"
+  include "music.asm"
 
   assert (pix_mask and &FF) == 0
 
@@ -419,6 +525,7 @@ hero_hidden:    db 0
 hero_soggy_f:   db 0            ; (fraction: hero_soggy_f as a word is 8.8)
 hero_soggy:     db 0
 hero_on_water:  db 0
+hero_was_wet:   db 0
 hero_angle:     dw 0
 hero_drawn:     db 0
 hero_drawn_cy:  db 0

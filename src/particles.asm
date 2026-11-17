@@ -16,7 +16,7 @@ P_M1        equ 7               ; pixel masks of that byte and the next
 P_M2        equ 8               ; (P_M1 = 0: nothing on screen)
 P_SIZE      equ 9
 PART_RIGHT  equ 380             ; a particle leaving on the left comes back here
-PART_MAX_OBJ equ 6              ; objects alive (shots included): skip a frame
+PART_MAX_OBJ equ 5              ; objects alive (shots included): skip a frame
 
 ; Spread them out again (after the screen was cleared, or the level wiped
 ; them with particles_wipe).

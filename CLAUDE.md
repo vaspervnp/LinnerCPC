@@ -27,6 +27,16 @@ Design: `linner_game_story.md`, plan: `milestones.md`.
   keys (DEL included), writes HISCORE.DAT via the FDC, reads it back and
   shows the title -> `build/hitest.png` must list CPC64 001329 first (the
   built-in table would mean the save or the load failed).
+- `make video`: build/linner_video.mp4 (tools/video.py; ~4 min, 12300
+  frames): a TEST_VIDEO=1 demo build (TEST_TITLE_WAIT=500 loops on the
+  title, RIGHT to HARD at loop 380, no gear 5: its long jumps landed on a
+  Rectangle in level 1, a second jump when coming down onto a gap, water,
+  spikes or a Rectangle, `video_danger`) clears levels 1-3, loses all 3
+  lives at x 656 in level 4, enters CPC64 and ends on the title. video.py
+  renders cpcsim frames (384x272 -> x4) and synthesises the AY (125 kHz,
+  pure Python lanes in big ints, no numpy) from psg_log, then ffmpeg muxes
+  (s16be raw audio, highpass/lowpass, fades). `--no-video --log` plans
+  a run fast (~1500 frames/4 s); `--wav` saves the sound.
 - `tools/hiscore.py [--where] disk.dsk` prints the table in a disk's
   HISCORE.DAT (and which track/sector it is on).
 - `make release`: build/release/linner-$(VERSION).zip (disc, snapshot,
@@ -68,6 +78,12 @@ Design: `linner_game_story.md`, plan: `milestones.md`.
   speed, 1-3 px long by speed; half of them move each frame (two frames'
   step; mask pairs from part_masks, so a streak is 1-2 byte XORs). render draws them after the objects;
   level_setup wipes and re-inits them, screen_clear re-inits them.
+- Sound (sound.asm, from the interrupt, the user asked): ~0.6 ms a frame
+  on top; level2asm's SOUND_US (600) is in COST_BASE (level 3's slope at
+  x 1304 was steepened 36 -> 30 px to stay in budget) and particles rest
+  with 5+ objects alive (PART_MAX_OBJ 5, was 6): borderline screens
+  otherwise tipped into 25 Hz stretches (an overrun loop runs two steps,
+  so it stays late until the screen gets lighter).
 - The HUD does at most one job per frame (a digit, a gear box or the
   soggy bar), so a score change never spikes a frame.
 - Terrain keys round to nearest (segments start at y + 0.5, slopes rounded)
@@ -194,6 +210,31 @@ Design: `linner_game_story.md`, plan: `milestones.md`.
   line_xor takes a pen (line_pen: &F0 pen 1, &0F pen 2, &FF pen 3; put it
   back to &FF, the game draws in pen 3).
 
+## Sound (sound.asm, build/music.asm from tools/gen_music.py)
+- int_handler counts the frame's interrupts (int_n, 0 at the VSYNC one)
+  and runs sound_tick in the 6th (~3 ms before VSYNC: the 1st is the
+  drawing's, Linner and objects race the beam). AF/BC/DE/HL pushed by
+  int_handler, IX by sound_tick; no shadow registers (terrain uses exx).
+- kbd_scan runs with interrupts off (both touch the PSG through the PPI);
+  the mixer keeps bit 6 = 0 (port A input). disk_load / disk_save call
+  sound_mute after `di` (a held note would drone through the FDC access).
+- State at SND = &7700 (free RAM between the object slots and RUNS),
+  cleared by sound_init. Channels A (bass), B (lead / arpeggio), C (drums
+  or a second voice); effects take over C (sfx_tick writes C's fields,
+  CH_PNOTE = &FF so the music recomputes its period). snd_env walks the
+  channel's first fields with HL (no IX); held envelope frames skip it
+  (CH_HELD); periods / noise are compared and written only when a period
+  changed (snd_dirty); registers go out when they differ from ay_last.
+- Requests are single bytes: music_play (A = SONG_x, C = key; the same song
+  in the same key keeps playing), sfx_play (A = SFX_x = its priority; a
+  playing effect is replaced only by an equal or higher one; SHOT doesn't
+  cut a drum hit of volume 9+).
+- Songs: TITLE (title and name entry), GAME (level_begin, key from
+  level_keys: 0,2,3,-2,5,7; keeps going through lost lives), DONE (finish
+  post), OVER (game over). Data format and the effects' table are
+  described in gen_music.py. Labels are case-insensitive: arpm / arpM and
+  AY_REGS / ay_regs clashed.
+
 ## High scores on disk (disk.asm)
 - The disc is an Extended DSK: iDSK writes "MV - CPCEMU" and
   tools/dsk2edsk.py converts it in make_dsk. Retro Virtual Machine v2
@@ -286,7 +327,7 @@ Design: `linner_game_story.md`, plan: `milestones.md`.
 - Mode 1 full overscan, 384x272, **single buffer** at &8000-&FFFF (32K via
   the R12 bits 2-3 trick, R12/R13 = &2C/&10 so charline 21 starts exactly at
   &C000). Runs on any 64K CPC; code, tables and levels live in
-  &0040-&6FFF (code_end ~&65F0), the variables at &7C00-&7DFF (not in
+  &0040-&6FFF (code_end ~&6DED: ~530 bytes left), the variables at &7C00-&7DFF (not in
   LINNER.BIN, cleared at start-up; ~&7D9C used), the stack below &8000.
   Text buffers sit among the variables: hs_row (20) overran disk_track /
   disk_sector once (the save then wrote the wrong sector), so size them

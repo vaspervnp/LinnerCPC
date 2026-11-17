@@ -288,6 +288,21 @@ score is the difficulty it was played on: E, M or H.
 - A chasm that needs gear 5 always comes after a Max Speed Rhombus: take
   it, shift up at once and jump before the boost runs out.
 
+## Music and sound
+
+The AY sound chip plays the music and the effects:
+
+- **The title and the name entry:** a slow theme, an arpeggio over a
+  sunset.
+- **The levels:** the in-game theme, with bass, lead and drums, in a
+  different key for each level. It keeps going when Linner loses a life.
+- **Level complete** and **game over** each have a short tune.
+
+Sound effects play on top of the music: jumps and second jumps, shots, a
+foe destroyed, a Rhombus picked up, a splash into water, a waypoint passed,
+a gear going up, and Linner falling, crashing or sinking. When an effect
+plays, it takes over the drums for a moment.
+
 ## Technical notes
 
 - Runs on any CPC with 64K. The firmware is switched off; the game drives
@@ -296,6 +311,8 @@ score is the difficulty it was played on: E, M or H.
 - Mode 1 full overscan, 384 × 272 pixels, 50 frames per second, single
   screen buffer: everything is drawn with XOR and only what changed is
   redrawn.
+- The sound is played from the interrupt, once every frame, about 3 ms
+  before the next picture starts.
 - Written in Z80 assembly (rasm); tested in Caprice32 and CPCEMU.
 
 **Disc contents:** `DISC.BAS` (loader with the loading screen),

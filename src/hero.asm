@@ -55,7 +55,8 @@ gear_up:
   ret nc
   inc a
   ld (gear),a
-  ret
+  ld a,SFX_GEAR
+  jp sfx_play
 
 hero_init:
   ld a,(p_gear_time)
@@ -145,7 +146,8 @@ hero_controls:
   ld (hero_jumps),a
   ld hl,(p_jump_v)
   ld (hero_vy),hl
-  ret
+  ld a,SFX_JUMP
+  jp sfx_play
 .air:
   ld a,(pad_new)                ; pressed again during a jump: the second,
   bit PAD_JUMP,a                ; half-strength jump (one per jump; not
@@ -157,7 +159,8 @@ hero_controls:
   ld (hero_jumps),a
   ld hl,(p_jump_v2)
   ld (hero_vy),hl
-  ret
+  ld a,SFX_JUMP2
+  jp sfx_play
 .cut:
   ld a,(pad)                    ; released while still rising fast: cut
   bit PAD_JUMP,a
@@ -413,8 +416,10 @@ hero_vertical:
 
 ; Water under Linner's centre soaks him; dry ground dries him off.
 hero_water:
-  xor a
-  ld (hero_on_water),a
+  ld hl,hero_on_water           ; (was he on water last frame?)
+  ld a,(hl)
+  ld (hero_was_wet),a
+  ld (hl),0
   ld a,(hero_grounded)
   or a
   jr z,.dry
@@ -430,6 +435,10 @@ hero_water:
   call hero_phased
   ld hl,hero_soggy
   jr z,.ghost
+  ld a,(hero_was_wet)           ; into the water: splash
+  or a
+  ld a,SFX_SPLASH
+  call z,sfx_play
   ld a,1
   ld (hero_on_water),a
   ld hl,(hero_soggy_f)          ; the meter fills at the difficulty's pace
@@ -469,6 +478,12 @@ hero_coast:
 ; A = new state, B = frames until the restart.
 hero_die:
   ld (hero_state),a
+  cp HERO_SINKING
+  ld a,SFX_DIE
+  jr nz,.sfx
+  ld a,SFX_SINK
+.sfx:
+  call sfx_play
   ld a,b
   ld (hero_timer),a
   ld hl,0

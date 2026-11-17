@@ -60,6 +60,13 @@ THE RULES
   Chasms, End of the Line.
 
 
+MUSIC AND SOUND
+---------------
+A title theme, an in-game theme (in a new key every level), jingles for a
+level complete and for game over, and sound effects over the music, all on
+the AY chip.
+
+
 HIGH SCORES
 -----------
 A Top 10 score lets you etch a 5-character name into the disc: UP/DOWN
@@ -86,7 +93,8 @@ TECHNICAL
 Mode 1 full overscan (384 x 272), 50 frames per second, single screen
 buffer: everything is drawn with XOR and only the parts that changed are
 redrawn. The firmware is switched off; the high score table is read and
-written straight through the uPD765 floppy controller.
+written straight through the uPD765 floppy controller, and the sound is
+played from the interrupt.
 
 Written in Z80 assembly (rasm), built with iDSK, tested on Caprice32 and
 CPCEMU.

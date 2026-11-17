@@ -641,6 +641,8 @@ fire_shot:
 .found:
   call shot_gap
   ld (shot_cool),a
+  ld a,SFX_SHOT
+  call sfx_play
   ld a,T_SHOT
   call obj_settype
   xor a
@@ -793,6 +795,8 @@ shots_vs_foes:
   jr nc,.miss
   set F_DEAD,(ix+O_FLAGS)       ; hit!
   set F_DEAD,(iy+O_FLAGS)
+  ld a,SFX_HIT
+  call sfx_play
   ld a,(ix+O_TYPE)
   cp T_RECT
   ld a,SCORE_RECT
@@ -889,11 +893,15 @@ things_vs_hero:
   ld (hero_hidden),a
   ret
 .fast:
+  ld a,SFX_POWER
+  call sfx_play
   set F_DEAD,(ix+O_FLAGS)
   ld a,(ix+O_VY)                ; its seconds
   call powerup_fast
   jr .next
 .phase:
+  ld a,SFX_POWER
+  call sfx_play
   set F_DEAD,(ix+O_FLAGS)
   ld a,(ix+O_VY)
   call powerup_phase

@@ -225,6 +225,9 @@ screen_clear:
 ; A = place to show highlighted (blinking), &FF for none.
 title_start:
   ld (title_hl),a
+  ld a,SONG_TITLE
+  ld c,0
+  call music_play
   call screen_clear
   call menu_world               ; the vector world under the words
   ld b,4
@@ -433,6 +436,8 @@ title_update:
   jr z,.show
   dec (hl)
 .show:
+  ld a,SFX_BLIP
+  call sfx_play
   jp title_diff
 .start:
   ld a,c
@@ -449,6 +454,9 @@ hiscore_after_game:
   jp nc,title_start
   ; fall through
 entry_start:
+  ld a,SONG_TITLE
+  ld c,0
+  call music_play
   call hiscore_rank
   ld (entry_rank),a
   call screen_clear
@@ -525,6 +533,8 @@ entry_xor_at:
 ; A = character: put it at the cursor.
 entry_set:
   push af
+  ld a,SFX_BLIP
+  call sfx_play
   call entry_char_xor           ; the old one off
   ld hl,entry_name
   ld a,(entry_pos)
@@ -665,6 +675,8 @@ entry_delete:
 
 ; Into the table, onto the disk, back to the title showing it.
 entry_done:
+  ld a,SFX_POWER
+  call sfx_play
   call entry_cursor_xor
   call hiscore_insert
   ld a,(disk_track)             ; no HISCORE.DAT found at boot: RAM only

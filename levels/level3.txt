@@ -21,8 +21,8 @@ time 135
 20  30  ground
 60  30  water       # straight after the gap: no run-up
 80  30  ground
-36  60  ground
-120 60  ground
+30  60  ground      # (steep: a cheaper screen for the sound)
+126 60  ground
 
 # --- the canal ---------------------------------------------------------------
 30  40  ground

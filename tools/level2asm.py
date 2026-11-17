@@ -407,7 +407,10 @@ def gaps(segs, start, foes, src):
 # changing ground column, COST_THING per foe/item/trap alive and COST_SHOT per
 # shot in flight (counted as all MAX_SHOTS: the fire button held). The
 # worst screen at top speed must leave COST_MARGIN of the 19968 us frame.
-COST_BASE, COST_COL, COST_THING, COST_SHOT = 4541, 74, 1389, 899
+# The sound (sound.asm, from the interrupt) adds ~600 us to a busy frame:
+# SOUND_US on top of the fitted base.
+SOUND_US = 600
+COST_BASE, COST_COL, COST_THING, COST_SHOT = 4541 + SOUND_US, 74, 1389, 899
 MAX_SHOTS = 3
 FRAME_US = 19968
 COST_MARGIN = 1500
