@@ -183,6 +183,12 @@ test_input:
   ld a,(pad)                    ; just landed with the button held: let go
   and 1<<PAD_JUMP
   jr nz,.set
+  if TEST_VIDEO                 ; the video: jump for the Rhombuses
+  push bc
+  call video_item
+  pop bc
+  jp nz,.jump
+  endif
   ld hl,(scroll_wx)
   ld de,HERO_X+TEST_LOOKAHEAD
   add hl,de
@@ -252,10 +258,16 @@ test_input:
   or 1<<PAD_JUMP
   ld c,a
 .set:
+  if TEST_VIDEO                 ; the video: aim at the nearest Triangle
+  push bc
+  call video_aim
+  pop bc
+  else
   ld a,(test_frame)             ; aim straight ahead, then 30 degrees up
   and 32                        ; (Triangles), 32 loops each
   jr z,.aim
   ld a,3
+  endif
 .aim:
   ld (hero_aim),a
   ld a,c                        ; keep firing
@@ -269,6 +281,168 @@ test_input:
   ld (pad),a
   ret
   if TEST_VIDEO
+; NZ if a Rhombus ahead is above Linner and in reach, and a full jump now
+; meets it: he rises through its height dx / speed frames from now
+; (video_jump_t: the frames a full jump takes to climb dy rows, 4-row
+; steps; 20 = its top).
+video_item:
+  ld ix,OBJECTS
+  ld b,MAX_FOES
+.lp:
+  ld a,(ix+O_TYPE)
+  cp T_FAST
+  jr z,.it
+  cp T_PHASE
+  jr nz,.next
+.it:
+  ld a,(ix+O_FLAGS)
+  and 1<<F_DEAD or 1<<F_VIS
+  cp 1<<F_VIS
+  jr nz,.next
+  ld a,(hero_cy)                ; dy = Linner's centre - its centre
+  sub (ix+O_Y)
+  jr c,.next
+  sub RHOMB_SPEED_H/2
+  jr c,.next
+  cp 12
+  jr c,.next                    ; at his height: he rolls into it
+  cp 64
+  jr nc,.next                   ; out of reach
+  rrca
+  rrca
+  and 15
+  ld e,a
+  ld d,0
+  ld hl,video_jump_t
+  add hl,de
+  ld c,(hl)                     ; frames to climb there
+  ld hl,0                       ; x covered meanwhile (8.8)
+  ld de,(speed)
+  ld a,c
+  or a
+  jr z,.reach
+.mul:
+  add hl,de
+  dec c
+  jr nz,.mul
+.reach:
+  ld c,h                        ; C = pixels
+  ld l,(ix+O_NSX)               ; dx = its centre - Linner's
+  ld h,(ix+O_NSX+1)
+  ld de,RHOMB_SPEED_W/2-HERO_X
+  add hl,de
+  ld a,h
+  or a
+  jr nz,.next                   ; behind him, or far
+  ld a,c
+  cp l
+  jr nc,.yes                    ; it's time
+.next:
+  ld de,OBJ_SIZE
+  add ix,de
+  djnz .lp
+  xor a
+  ret
+.yes:
+  or 1
+  ret
+; -> A = the aim (0 ahead .. 9 up) at the nearest Triangle ahead of Linner
+; and above him; 0 (the Rectangles) when there is none.
+video_aim:
+  ld ix,OBJECTS
+  ld b,MAX_FOES
+  ld c,255                      ; the nearest dx so far
+  ld d,0                        ; and its dy
+.lp:
+  ld a,(ix+O_TYPE)
+  cp T_TRI
+  jr nz,.next
+  ld a,(ix+O_FLAGS)
+  and 1<<F_DEAD or 1<<F_VIS
+  cp 1<<F_VIS
+  jr nz,.next
+  ld a,(hero_cy)                ; dy = Linner's centre - its centre
+  sub (ix+O_Y)
+  jr c,.next
+  sub TRI_H/2
+  jr c,.next
+  jr z,.next
+  ld e,a
+  ld l,(ix+O_NSX)               ; dx = its centre - Linner's
+  ld h,(ix+O_NSX+1)
+  push de
+  ld de,TRI_W/2-HERO_X
+  add hl,de
+  pop de
+  ld a,h
+  or a
+  jr nz,.next                   ; behind him, or off the screen
+  ld a,l
+  cp c
+  jr nc,.next
+  ld c,a
+  ld d,e
+.next:
+  push de
+  ld de,OBJ_SIZE
+  add ix,de
+  pop de
+  djnz .lp
+  ld a,d
+  or a
+  ret z                         ; none: straight ahead
+  ld a,c                        ; aim = the boundaries (5, 15 .. 75 degrees)
+  cp 4                          ; that dy / dx is past
+  ld a,9
+  ret c
+  ld l,d                        ; dy * 16
+  ld h,0
+  add hl,hl
+  add hl,hl
+  add hl,hl
+  add hl,hl
+  ex de,hl                      ; DE = dy * 16
+  srl c                         ; C = dx / 8: half the distance, since it
+  srl c                         ; comes at him at ~5.8 px a frame (gear 4
+  srl c                         ; plus its drift) and a shot flies at 5:
+                                ; aiming at half dx leads it
+  ld hl,video_tan
+  ld b,0                        ; B = the aim
+.bound:
+  push hl
+  push de
+  push bc
+  ld a,(hl)                     ; dx / 8 * tan * 64
+  ld e,c
+  ld d,0
+  ld hl,0
+  ld b,8
+.mul:
+  add hl,hl
+  rla
+  jr nc,.mul1
+  add hl,de
+.mul1:
+  djnz .mul
+  pop bc
+  pop de
+  or a
+  sbc hl,de                     ; past this boundary?
+  pop hl
+  ld a,b
+  ret nc
+  inc b
+  inc hl
+  ld a,b
+  cp 8
+  jr c,.bound
+  ret
+video_tan:                      ; tan(5, 15 .. 75 degrees) * 64
+  db 6,17,30,45,64,91,137,239
+
+video_jump_t:
+  db 0,1,2,3,4,5,6,7,9,10,12,14,20,20,20,20
+
 ; NZ if a gap or water is 8..56 px ahead of Linner, or spikes or a
 ; Rectangle up to 64 px ahead (or under him).
 video_danger:
@@ -459,7 +633,16 @@ TEST_NAME_END equ 64
   include "hiscore.asm"
   include "menu.asm"
   include "particles.asm"
+  if TEST_VIDEO                 ; (the video's demo never touches the disk:
+FDC_MOTOR  equ &FA7E            ; room for its autopilot)
+SECTOR_BUF equ &C4E0
+disk_load:
+disk_save:
+  or a
+  ret
+  else
   include "disk.asm"
+  endif
   include "sound.asm"
   include "tables.asm"
   include "levels.asm"

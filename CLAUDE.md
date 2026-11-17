@@ -31,8 +31,12 @@ Design: `linner_game_story.md`, plan: `milestones.md`.
   frames): a TEST_VIDEO=1 demo build (TEST_TITLE_WAIT=500 loops on the
   title, RIGHT to HARD at loop 380, no gear 5: its long jumps landed on a
   Rectangle in level 1, a second jump when coming down onto a gap, water,
-  spikes or a Rectangle, `video_danger`) clears levels 1-3, loses all 3
-  lives at x 656 in level 4, enters CPC64 and ends on the title. video.py
+  spikes or a Rectangle, `video_danger`; a jump for a Rhombus above him
+  timed by video_jump_t, `video_item` (the user asked); the aim at the
+  nearest Triangle ahead with half its dx as lead, `video_aim`) clears
+  levels 1-3 taking 12 of their 13 Rhombuses, loses all 3 lives at x 656
+  in level 4, enters CPC64 and ends on the title. TEST_VIDEO builds leave
+  out disk.asm (stubs): the test code didn't fit the code area. video.py
   renders cpcsim frames (384x272 -> x4) and synthesises the AY (125 kHz,
   pure Python lanes in big ints, no numpy) from psg_log, then ffmpeg muxes
   (s16be raw audio, highpass/lowpass, fades). `--no-video --log` plans
